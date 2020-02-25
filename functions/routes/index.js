@@ -26,7 +26,7 @@
 const url = require('url');
 
 module.exports = req => {
-  const {pathname} = url.parse(req.url);
+  const { pathname } = url.parse(req.url);
   let checkSupport = req.query.support === 'true';
   let checkAdmin = false;
   let func;
@@ -93,9 +93,6 @@ module.exports = req => {
     case 'activities/change-status':
       func = require('../firestore/activity/on-change-status');
       break;
-    case 'activities/comment':
-      func = require('../firestore/activity/on-comment');
-      break;
     case 'activities/share':
       func = require('../firestore/activity/on-share');
       break;
@@ -146,6 +143,9 @@ module.exports = req => {
     case 'myGrowthfile':
       func = require('../firestore/my-growthfile/index');
       break;
+    case 'myGrowthfile/batch':
+      func = require('../firestore/my-growthfile/batch');
+      break;
     case 'search':
       checkAdmin = true;
       checkSupport = true;
@@ -160,7 +160,10 @@ module.exports = req => {
     case 'read1':
       func = require('../firestore/on-read1');
       break;
-    case `trackMail`:
+    case 'read':
+      func = require('../firestore/on-read1');
+      break;
+    case 'trackMail':
       func = require('../webhooks/sendgrid');
       break;
     case `services/office`:
@@ -172,8 +175,30 @@ module.exports = req => {
     case 'services/subscription':
       func = require('../services/subscription');
       break;
-    case 'services/checkIns':
-      func = require('../services/checkIns');
+    case 'services/subscription/checkIn':
+      /**
+       * Accessible by anyone with auth.
+       * Is used to check if the user has a check-in subscription
+       * for any office
+       *
+       * Method: GET
+       * Request body:
+       * `
+       * {}
+       * `
+       *
+       * Response body:
+       * `
+       * {
+       *    "hasCheckInSubscription": <boolean>
+       * }
+       * `
+       * Query Params:
+       * `
+       * {}
+       * `
+       */
+      func = require('../services/check-check-in-subcription');
       break;
     /**
      * Accessible by anyone with auth.
@@ -221,30 +246,8 @@ module.exports = req => {
     case 'services/idProof':
       func = require('../services/id-proof');
       break;
-    case 'services/subscription/checkIn':
-      /**
-       * Accessible by anyone with auth.
-       * Is used to check if the user has a check-in subscription
-       * for any office
-       *
-       * Method: GET
-       * Request body:
-       * `
-       * {}
-       * `
-       *
-       * Response body:
-       * `
-       * {
-       *    "hasCheckInSubscription": <boolean>
-       * }
-       * `
-       * Query Params:
-       * `
-       * {}
-       * `
-       */
-      func = require('../services/check-check-in-subcription');
+    case 'services/users':
+      func = require('../services/users');
       break;
     /**
      * 404 not found

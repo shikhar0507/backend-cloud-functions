@@ -23,14 +23,14 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../../admin/admin');
+const { db, rootCollections } = require('../../admin/admin');
 const {
   sendResponse,
   handleError,
   isValidDate,
   isNonEmptyString,
 } = require('../../admin/utils');
-const {code} = require('../../admin/responses');
+const { code } = require('../../admin/responses');
 const momentTz = require('moment-timezone');
 
 const validateRequestBody = requestBody => {
@@ -103,7 +103,7 @@ module.exports = async conn => {
     const [recipientDoc] = recipientDocsQuery.docs;
     const {
       attachment: {
-        Timezone: {value: timezone},
+        Timezone: { value: timezone },
       },
     } = officeDoc.data();
 

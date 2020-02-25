@@ -81,12 +81,6 @@ env.*
 # data file
 *.csv
 
-# Images
-*.jpg
-*.jpeg
-*.png
-*.gif
-
 # Firebase cache files
 .cache/
 .firebase/

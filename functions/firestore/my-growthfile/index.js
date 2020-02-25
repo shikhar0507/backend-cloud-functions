@@ -23,230 +23,288 @@
 
 'use strict';
 
-const {rootCollections} = require('../../admin/admin');
-const {getAuth, sendResponse, sendJSON} = require('../../admin/utils');
-const {code} = require('../../admin/responses');
-const {dateFormats} = require('../../admin/constants');
-const momentTz = require('moment-timezone');
+const { rootCollections } = require('../../admin/admin');
+const { subcollectionNames } = require('../../admin/constants');
+const { sendJSON, sendResponse, getAuth } = require('../../admin/utils');
+const { code } = require('../../admin/responses');
 
-module.exports = async conn => {
-  if (conn.req.method !== 'GET') {
-    return sendResponse(
-      conn,
-      code.methodNotAllowed,
-      `Method '${conn.req.method}' is not allowed. Use 'GET'`,
+const docIdMapper = doc => Object.assign({}, doc.data(), { id: doc.id });
+
+const getCanEditRuleValue = ({
+  canEditRule,
+  employeeOf,
+  office,
+  customClaims = {},
+}) => {
+  // ALL, NONE, ADMIN, EMPLOYEE
+  if (canEditRule === 'ALL') {
+    return true;
+  }
+
+  const isEmployee = !!employeeOf[office];
+
+  if (canEditRule === 'EMPLOYEE') {
+    return isEmployee;
+  }
+
+  if (canEditRule === 'ADMIN') {
+    return (
+      Array.isArray(customClaims.admin) && customClaims.admin.includes(office)
     );
   }
 
-  const jsonResponse = {
-    pendingPayments: [],
-    pendingDeposits: [],
-    previousDeposits: [],
-    payroll: {
-      recipient: {
-        assignees: [],
-        status: '',
-        activityId: '',
-      },
-    },
-    reimbursement: {
-      recipient: {
-        assignees: [],
-        status: '',
-        activityId: '',
-      },
-    },
-  };
+  // NONE
+  return false;
+};
 
-  // payroll and reimbursements recipient docs.
-  // then their auth
-  // then their employee activity
-  const adminOffices = (conn.requester.customClaims || {}).admin || [];
-
-  if (
-    adminOffices.length === 0 ||
-    (conn.req.query.hasOwnProperty('office') &&
-      !adminOffices.includes(conn.req.query.office))
-  ) {
-    return sendResponse(conn, code.unauthorized, `Not an admin account`);
+const getCreatorForActivity = creator => {
+  if (typeof creator === 'string') {
+    return {
+      phoneNumber: creator,
+      displayName: '',
+      email: '',
+    };
   }
 
-  if (adminOffices.length > 1 && !conn.req.query.hasOwnProperty('office')) {
+  return creator;
+};
+
+const activityFilter = ({ doc, employeeOf, customClaims }) =>
+  Object.assign({}, doc.data(), {
+    activityId: doc.id,
+    // While sending in the response, this field will be
+    // removed by JSON.stringify method.
+    addendumDocRef: undefined,
+    creator: getCreatorForActivity(doc.get('creator')),
+    canEdit: getCanEditRuleValue({
+      employeeOf,
+      customClaims,
+      canEditRule: doc.get('canEditRule'),
+      office: doc.get('office'),
+    }),
+  });
+
+const isAnAdmin = ({ office, customClaims = {} }) =>
+  Array.isArray(customClaims.admin) && customClaims.admin.includes(office);
+
+/**
+ * If `query.field` is a single item, express will set it as a string.
+ * We are handling an array only, so this function returns an array
+ * if the field is array or returns the array with the single item.
+ *
+ * @param {String | Array<String>} query Query param from URL.
+ * @returns {Array<String>} Fields expected in the response from the client.
+ */
+const getFieldQueryParam = query => {
+  if (typeof query.field === 'string') {
+    return [query.field];
+  }
+
+  return query.field || [];
+};
+
+const activityFieldsSelector = () => [
+  'canEditRule',
+  'template',
+  'status',
+  'schedule',
+  'venue',
+  'timestamp',
+  'activityName',
+  'office',
+  'officeId',
+  'attachment',
+  'hidden',
+  'creator',
+];
+
+const getLocations = async ({ officeId, customClaims, employeeOf }) =>
+  (
+    await rootCollections.activities
+      .where('officeId', '==', officeId)
+      .where('template', 'in', ['customer', 'branch'])
+      .where('status', '==', 'CONFIRMED')
+      .get()
+  ).docs.map(doc => activityFilter({ doc, customClaims, employeeOf }));
+
+const getRecipients = async ({ officeId }) => {
+  const authPromises = [];
+  const phoneNumberUniques = new Set();
+  const detailsFromAuth = new Map();
+  const { docs } = await rootCollections.recipients
+    .where('officeId', '==', officeId)
+    .select(...['office', 'officeId', 'include', 'cc', 'report', 'status'])
+    .get();
+
+  docs.forEach(doc => {
+    const { include = [] } = doc.data();
+
+    include.forEach(phoneNumber => {
+      // This is to avoid fetching same phoneNumber's auth multiple
+      // times since that is redundant and useless.
+      if (phoneNumberUniques.has(phoneNumber)) {
+        return;
+      }
+
+      authPromises.push(getAuth(phoneNumber));
+    });
+  });
+
+  (await Promise.all(authPromises)).forEach(userRecord => {
+    const {
+      phoneNumber,
+      photoURL = '',
+      uid = null,
+      displayName = '',
+      email = '',
+      emailVerified = false,
+    } = userRecord;
+
+    detailsFromAuth.set(phoneNumber, {
+      phoneNumber,
+      uid,
+      displayName,
+      email,
+      emailVerified,
+      photoURL,
+    });
+  });
+
+  return docs.map(recipient => {
+    const { include: assignees = [] } = recipient.data();
+
+    return Object.assign({}, recipient.data(), {
+      activityId: recipient.id,
+      createTime: recipient.createTime.toMillis(),
+      updateTime: recipient.updateTime.toMillis(),
+      include: assignees.map(phoneNumber => detailsFromAuth.get(phoneNumber)),
+    });
+  });
+};
+
+const getTypes = async ({ officeId, customClaims, employeeOf }) =>
+  (
+    await rootCollections.activities
+      .where('officeId', '==', officeId)
+      .where('report', '==', 'type')
+      .select(...activityFieldsSelector())
+      .get()
+  ).docs.map(doc => activityFilter({ doc, customClaims, employeeOf }));
+
+const getRoles = async ({ officeId, employeeOf, customClaims }) =>
+  (
+    await rootCollections.activities
+      .where('officeId', '==', officeId)
+      .where('template', 'in', ['employee', 'admin', 'subscription'])
+      .select(...activityFieldsSelector())
+      .get()
+  ).docs.reduce((prevValue, doc) => {
+    const { template } = doc.data();
+
+    prevValue[template] = prevValue[template] || [];
+    prevValue[template].push(activityFilter({ doc, employeeOf, customClaims }));
+
+    return prevValue;
+  }, {});
+
+const handleGetRequest = async conn => {
+  const { office } = conn.req.query;
+  const { customClaims = {} } = conn.requester;
+  const { employeeOf = {} } =
+    (conn.profileDoc && conn.profileDoc.get('employeeOf')) || {};
+
+  if (!office) {
     return sendResponse(
       conn,
       code.badRequest,
-      `Missing query param 'office' in the request URL`,
+      `Missing 'office' in query params`,
     );
   }
 
-  const office = conn.req.query.office || adminOffices[0];
+  const adminAllowed = isAnAdmin({ office, customClaims });
 
-  console.log('office', JSON.stringify(office));
-
-  const queries = await Promise.all([
-    rootCollections.offices
-      .where('attachment.Name.value', '==', office)
-      .limit(1)
-      .get(),
-    rootCollections.recipients
-      .where('office', '==', office)
-      .where('report', '==', 'payroll')
-      .limit(1)
-      .get(),
-    rootCollections.recipients
-      .where('office', '==', office)
-      .where('report', '==', 'reimbursements')
-      .limit(1)
-      .get(),
-  ]);
-
-  console.log('after queries');
-
-  const [
-    officeQueryResult,
-    payrollQueryResult,
-    reimbursementsQueryResult,
-  ] = queries;
-
-  const [officeDoc] = officeQueryResult.docs;
-  const payrollRecipientDoc = payrollQueryResult.docs[0];
-  const reimbursementsDoc = reimbursementsQueryResult.docs[0];
-  const authPromises = [];
-  const officeAssigneMap = new Map();
-  const payrollRecipients = new Set();
-  const reimbursementRecipients = new Set();
-
-  jsonResponse.paymentMethods = officeDoc.get('paymentMethods') || [];
-
-  if (payrollRecipientDoc) {
-    jsonResponse.payroll.recipient.status = payrollRecipientDoc.get('status');
-    jsonResponse.payroll.recipient.activityId = payrollRecipientDoc.id;
-
-    payrollRecipientDoc.get('include').forEach(phoneNumber => {
-      officeAssigneMap.set(phoneNumber, payrollRecipientDoc.get('office'));
-
-      payrollRecipients.add(phoneNumber);
-    });
-  }
-
-  if (reimbursementsDoc) {
-    jsonResponse.reimbursement.recipient.status = reimbursementsDoc.get(
-      'status',
+  // User is not an ADMIN and NOT a support person, reject the request.
+  if (!adminAllowed && !conn.requester.isSupportRequest) {
+    return sendResponse(
+      conn,
+      code.unauthorized,
+      `You cannot access this resource.`,
     );
-
-    jsonResponse.reimbursement.recipient.activityId = reimbursementsDoc.id;
-
-    reimbursementsDoc.get('include').forEach(phoneNumber => {
-      officeAssigneMap.set(phoneNumber, reimbursementsDoc.get('office'));
-
-      reimbursementRecipients.add(phoneNumber);
-    });
   }
 
-  const allPhoneNumbers = new Set([
-    ...reimbursementRecipients.keys(),
-    ...payrollRecipients.keys(),
-  ]);
+  const fields = getFieldQueryParam(conn.req.query);
 
-  const employeeQueries = [];
-
-  allPhoneNumbers.forEach(phoneNumber => {
-    const p = officeDoc.ref
-      .collection('Activities')
-      .where('template', '==', 'employee')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
-      .where('status', '==', 'CONFIRMED')
-      .limit(1)
-      .get();
-
-    employeeQueries.push(p);
-  });
-
-  const employeeResults = await Promise.all(employeeQueries);
-
-  const employeeSet = new Set();
-
-  employeeResults.forEach(doc => {
-    if (!doc.exists) {
-      return;
-    }
-
-    employeeSet.add(doc.get('attachment.Phone Number.value'));
-  });
-
-  allPhoneNumbers.forEach(phoneNumber => {
-    authPromises.push(getAuth(phoneNumber));
-  });
-
-  console.log('before userRecords');
-
-  const userRecords = await Promise.all(authPromises);
-
-  console.log('after userRecords');
-
-  userRecords.forEach(userRecord => {
-    const office = officeAssigneMap.get(userRecord.phoneNumber);
-    const authRecord = {
-      office,
-      phoneNumber: userRecord.phoneNumber,
-      isEmployee: employeeSet.has(userRecord.phoneNumber),
-      email: userRecord.email,
-      emailVerified: userRecord.emailVerified,
-    };
-
-    if (payrollRecipients.has(userRecord.phoneNumber)) {
-      jsonResponse.payroll.recipient.assignees.push(authRecord);
-    }
-
-    if (reimbursementRecipients.has(userRecord.phoneNumber)) {
-      jsonResponse.reimbursement.recipient.assignees.push(authRecord);
-    }
-  });
-
-  const timezone = officeDoc.get('attachment.Timezone.value');
-  const momentNow = momentTz().tz(timezone);
-  const firstDayOfMonthlyCycle =
-    officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1;
-  const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentNow.date();
-
-  const cycleStart = (() => {
-    if (fetchPreviousMonthDocs) {
-      const momentPrevMonth = momentNow
-        .clone()
-        .subtract(1, 'month')
-        .date(firstDayOfMonthlyCycle);
-
-      return momentNow.diff(momentPrevMonth, 'days');
-    }
-
-    return momentNow.clone().startOf('month');
-  })();
-
-  const cycleEnd = momentNow;
-
-  console.log('cycleStart', cycleStart.format(dateFormats.DATE));
-  console.log('cycleEnd', cycleEnd.format(dateFormats.DATE));
-
-  const pendingPaymentsQueryResult = await officeDoc.ref
-    .collection('Payments')
-    .where('createdAt', '>=', cycleStart.valueOf())
-    .where('createdAt', '<=', cycleEnd.valueOf())
+  const {
+    /**
+     * Office might not exist since we are expecting user
+     * input in the office value.
+     */
+    docs: [{ id: officeId } = {}],
+  } = await rootCollections.offices
+    .where('office', '==', office)
+    .limit(1)
     .get();
 
-  console.log('pendingPaymentsQueryResult', pendingPaymentsQueryResult.size);
+  if (!officeId) {
+    return sendResponse(
+      conn,
+      code.conflict,
+      `No office found with the name: '${office}'`,
+    );
+  }
 
-  jsonResponse.pendingPayments = pendingPaymentsQueryResult.docs.map(doc => {
-    return Object.assign({}, doc.data(), {
-      paymentId: doc.id,
-    });
+  const [
+    locations,
+    recipients,
+    types,
+    roles,
+    vouchers,
+    deposits,
+    batches,
+  ] = await Promise.all([
+    !fields.includes('locations')
+      ? []
+      : getLocations({ officeId, employeeOf, customClaims }),
+    !fields.includes('recipients') ? [] : getRecipients({ officeId }),
+    !fields.includes('types')
+      ? []
+      : getTypes({ officeId, employeeOf, customClaims }),
+    !fields.includes('roles')
+      ? []
+      : getRoles({ officeId, employeeOf, customClaims }),
+    /**
+     * Vouchers are sent always.
+     * Optional fields are locations, recipients, types and roles.
+     */
+    rootCollections.offices
+      .doc(officeId)
+      .collection(subcollectionNames.VOUCHERS)
+      .get(),
+    rootCollections.deposits.where('officeId', '==', officeId).get(),
+    rootCollections.batches.where('officeId', '==', officeId).get(),
+  ]);
+
+  return sendJSON(conn, {
+    locations,
+    recipients,
+    types,
+    roles,
+    vouchers: vouchers.docs.map(docIdMapper),
+    deposits: deposits.docs.map(docIdMapper),
+    batches: batches.docs.map(docIdMapper),
   });
+};
 
-  jsonResponse.pendingDeposits = (
-    await rootCollections.deposits
-      .where('createdOn', '>=', cycleStart.valueOf())
-      .where('createdOn', '<=', cycleEnd.valueOf())
-      .get()
-  ).docs.map(doc => doc.data());
+module.exports = async conn => {
+  const { method } = conn.req;
 
-  return sendJSON(conn, jsonResponse);
+  if (method === 'GET') {
+    return handleGetRequest(conn);
+  }
+
+  return sendResponse(
+    conn,
+    code.methodNotAllowed,
+    `${method} is not allowed. Use 'GET'`,
+  );
 };

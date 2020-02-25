@@ -23,17 +23,20 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../admin/admin');
-const {reportNames, dateFormats} = require('../admin/constants');
+const { db, rootCollections } = require('../admin/admin');
+const { reportNames, dateFormats } = require('../admin/constants');
+const {
+  maileventInitSummaryReport,
+} = require('../firestore/recipients/maileventInitSummary-report');
+const {
+  maileventInitReport,
+} = require('../firestore/recipients/maileventInit-report');
 const moment = require('moment');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
-const {
-  maileventInitReport,
-} = require('../firestore/recipients/maileventInit-report');
 sgMail.setApiKey(env.sgMailApiKey);
 
 const sendErrorReport = async () => {
@@ -186,7 +189,6 @@ module.exports = async timerDoc => {
       sgMail.sendMultiple(messages),
       sendErrorReport(),
       fetchExternalTokens(timerDoc),
-      maileventInitReport(),
     ]);
 
     const momentYesterday = moment()
@@ -237,6 +239,9 @@ module.exports = async timerDoc => {
     }
 
     await batch.commit();
+    await maileventInitReport();
+    await maileventInitSummaryReport();
+
     return deleteInstantDocs();
   } catch (error) {
     console.error(error);

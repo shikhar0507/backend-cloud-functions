@@ -23,25 +23,25 @@
 
 'use strict';
 
-const {rootCollections} = require('../admin/admin');
-const {sendResponse, handleError, isNonEmptyString} = require('../admin/utils');
-const {addBeneficiary, removeBeneficiary} = require('../cash-free/payout');
-const {code} = require('../admin/responses');
+const { rootCollections } = require('../admin/admin');
+const {
+  sendResponse,
+  handleError,
+  isNonEmptyString,
+} = require('../admin/utils');
+const { code } = require('../admin/responses');
 const admin = require('firebase-admin');
 
-const validator = body => {
-  // bankAccount: conn.req.body.bankAccount,
-  //   ifsc: conn.req.body.ifsc,
-  //     address1: conn.req.body.address1,
-  if (!isNonEmptyString(body.bankAccount)) {
+const validator = ({ bankAccount, ifsc, address1 }) => {
+  if (!isNonEmptyString(bankAccount)) {
     return `Invalid 'bankAccount'`;
   }
 
-  if (!isNonEmptyString(body.ifsc)) {
+  if (!isNonEmptyString(ifsc)) {
     return `Invalid 'ifsc'`;
   }
 
-  if (!isNonEmptyString(body.address1)) {
+  if (!isNonEmptyString(address1)) {
     return `Invalid 'address1'`;
   }
 
@@ -66,27 +66,7 @@ const handlePost = async conn => {
       return sendResponse(
         conn,
         code.conflict,
-        `Email/Display Name is missing` + ` Please complete your profile`,
-      );
-    }
-
-    const response = await addBeneficiary({
-      beneId: conn.requester.uid,
-      name: userRecord.displayName,
-      email: userRecord.email,
-      phone: userRecord.phoneNumber.split('+91')[1],
-      bankAccount: String(conn.req.body.bankAccount),
-      ifsc: conn.req.body.ifsc,
-      address1: conn.req.body.address1,
-    });
-
-    if (response.subCode !== '200') {
-      console.error('add_bene_err:', response);
-
-      return sendResponse(
-        conn,
-        code.conflict,
-        `Account cannot be added right now.` + ` ${response.message}`,
+        `Email/Display Name is missing. Please complete your profile`,
       );
     }
 
@@ -127,27 +107,6 @@ const handleDelete = async conn => {
   }
 
   try {
-    const response = await removeBeneficiary(conn.requester.uid);
-
-    console.log('response', response);
-
-    if (response.subCode === '404') {
-      return sendResponse(
-        conn,
-        code.conflict,
-        `No bank account is linked to your account`,
-      );
-    }
-    if (response.subCode !== '200') {
-      console.log(response);
-
-      return sendResponse(
-        conn,
-        code.badRequest,
-        `There was a problem removing your account. Please try again later`,
-      );
-    }
-
     const updatesDoc = await rootCollections.updates
       .doc(conn.requester.uid)
       .get();

@@ -33,8 +33,8 @@ const {
   // timezonesSet,
   subcollectionNames,
 } = require('../admin/constants');
-const {code} = require('../admin/responses');
-const {db, getGeopointObject, rootCollections} = require('../admin/admin');
+const { code } = require('../admin/responses');
+const { db, getGeopointObject, rootCollections } = require('../admin/admin');
 const {
   isValidDate,
   isValidGeopoint,
@@ -111,8 +111,8 @@ const getAddendumRef = officeId => {
     .doc();
 };
 
-const getWeekdayStartTime = firstResult => {
-  const {opening_hours: openingHours} = firstResult;
+const getWeekdayStartTime = (firstResult = {}) => {
+  const { opening_hours: openingHours } = firstResult;
 
   if (!openingHours || !openingHours.periods) {
     return '';
@@ -129,8 +129,8 @@ const getWeekdayStartTime = firstResult => {
   return millitaryToHourMinutes(openingPeriod);
 };
 
-const getWeekdayEndTime = firstResult => {
-  const {opening_hours: openingHours} = firstResult;
+const getWeekdayEndTime = (firstResult = {}) => {
+  const { opening_hours: openingHours } = firstResult;
 
   if (!openingHours || !openingHours.periods) {
     return '';
@@ -149,13 +149,13 @@ const getWeekdayEndTime = firstResult => {
 };
 
 const getWeeklyOff = placeApiResult => {
-  const {opening_hours: openingHours} = placeApiResult.json.result;
+  const { opening_hours: openingHours } = placeApiResult.json.result;
 
   if (!openingHours) {
     return '';
   }
 
-  const {weekday_text: weekdayText} = openingHours;
+  const { weekday_text: weekdayText } = openingHours;
 
   if (!weekdayText) {
     return '';
@@ -179,12 +179,12 @@ const getWeeklyOff = placeApiResult => {
 };
 
 const placeIdToBranch = async (placeId, creator) => {
-  const [branchTemplate] = (
-    await rootCollections.activityTemplates
-      .where('name', '==', 'branch')
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [branchTemplate],
+  } = await rootCollections.activityTemplates
+    .where('name', '==', 'branch')
+    .limit(1)
+    .get();
 
   const placeApiResult = await googleMapsClient
     .place({
@@ -198,7 +198,11 @@ const placeIdToBranch = async (placeId, creator) => {
     })
     .asPromise();
 
-  const [firstResult] = placesApiResult.json.results;
+  const {
+    json: {
+      results: [firstResult],
+    },
+  } = placesApiResult;
   const attachment = new Attachment(
     {
       'First Contact': creator.phoneNumber,
@@ -269,12 +273,12 @@ const createOffice = async conn => {
     geopoint,
   } = conn.req.body;
 
-  const [officeDoc] = (
-    await rootCollections.activities
-      .where('office', '==', office)
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [officeDoc],
+  } = await rootCollections.activities
+    .where('office', '==', office)
+    .limit(1)
+    .get();
 
   if (officeDoc) {
     return sendResponse(
@@ -284,7 +288,7 @@ const createOffice = async conn => {
     );
   }
 
-  const {phoneNumber, displayName, photoURL} = conn.requester;
+  const { phoneNumber, displayName, photoURL } = conn.requester;
   const batch = db.batch();
   const template = 'office';
   const [
@@ -317,7 +321,7 @@ const createOffice = async conn => {
   }
 
   const activityRef = rootCollections.activities.doc();
-  const {id: activityId} = activityRef;
+  const { id: activityId } = activityRef;
 
   // This api only creates the office activity.
   const officeId = activityId;
@@ -381,7 +385,7 @@ const createOffice = async conn => {
     templateDoc.get('attachment'),
   ).toObject();
 
-  const {date, months: month, years: year} = momentTz().toObject();
+  const { date, months: month, years: year } = momentTz().toObject();
 
   const assignees = Array.from(
     new Set([

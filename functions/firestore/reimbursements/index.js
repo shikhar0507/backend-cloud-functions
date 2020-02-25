@@ -23,7 +23,8 @@
 
 'use strict';
 
-const {rootCollections, db} = require('../../admin/admin');
+const { getAuth } = require('../../admin/utils');
+const { rootCollections, db } = require('../../admin/admin');
 const {
   subcollectionNames,
   dateFormats,
@@ -31,61 +32,7 @@ const {
   reimbursementsFrequencies,
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
-const Dinero = require('dinero.js');
-
-const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
-  if (roleDoc && roleDoc.id) {
-    return roleDoc.id;
-  }
-
-  const [newRole] = (
-    await rootCollections.activities
-      .where('officeId', '==', officeId)
-      .where('status', '==', 'CONFIRMED')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
-      .get()
-  ).docs.filter(doc => {
-    const {template} = doc.data();
-
-    return template !== 'admin' && template !== 'subscription';
-  });
-
-  if (newRole) {
-    return newRole.id;
-  }
-
-  // query checkIn subscription doc
-  // use that activityId as the role
-  const {
-    docs: [checkInSubscription],
-  } = await rootCollections.activities
-    .where('template', '==', 'subscription')
-    .where('attachment.Template.value', '==', 'check-in')
-    .where('officeId', '==', officeId)
-    .where('attachment.Phone Number.value', '==', phoneNumber)
-    .limit(1)
-    .get();
-
-  if (checkInSubscription) {
-    return checkInSubscription.id;
-  }
-
-  const {
-    docs: [reimbursementTemplateSubscription],
-  } = await rootCollections.profiles
-    .doc(phoneNumber)
-    .collection(subcollectionNames.SUBSCRIPTIONS)
-    .where('report', '==', 'reimbursement')
-    .where('officeId', '==', officeId)
-    .limit(1)
-    .get();
-
-  if (reimbursementTemplateSubscription) {
-    return reimbursementTemplateSubscription.id;
-  }
-
-  return null;
-};
+const currencyJs = require('currency.js');
 
 const getDefaultVoucher = ({
   beneficiaryId,
@@ -104,7 +51,7 @@ const getDefaultVoucher = ({
   batchId: null,
 });
 
-const getIterator = ({reimbursementFrequency, date, month, year}) => {
+const getIterator = ({ reimbursementFrequency, date, month, year }) => {
   const momentInstance = momentTz()
     .date(date)
     .month(month)
@@ -130,8 +77,8 @@ const getIterator = ({reimbursementFrequency, date, month, year}) => {
   };
 };
 
-const getCycleDates = ({reimbursementFrequency, date, month, year}) => {
-  const {end: iteratorEnd, start: iteratorStart} = getIterator({
+const getCycleDates = ({ reimbursementFrequency, date, month, year }) => {
+  const { end: iteratorEnd, start: iteratorStart } = getIterator({
     reimbursementFrequency,
     date,
     month,
@@ -158,7 +105,7 @@ const getCycleDates = ({reimbursementFrequency, date, month, year}) => {
 };
 
 const reimbursementHandler = async (change, context) => {
-  const {officeId} = context.params;
+  const { officeId } = context.params;
   const {
     after: reimbursementDocNewState,
     before: reimbursementDocOldState,
@@ -166,43 +113,17 @@ const reimbursementHandler = async (change, context) => {
   const batch = db.batch();
   const {
     date,
-    currency = 'INR',
     month,
     year,
-    phoneNumber,
-    roleDoc,
     office,
     claimId,
     status,
+    uid: beneficiaryId,
     amount: newAmount,
+    phoneNumber,
   } = reimbursementDocNewState.data();
-  const {amount: oldAmount = 0} = reimbursementDocOldState.data() || {};
-
-  const [beneficiaryId, officeDoc] = await Promise.all([
-    getBeneficiaryId({
-      phoneNumber,
-      /**
-       * There will be docs where roleDoc is `null`/`undefined`
-       */
-      roleDoc,
-      /**
-       * Some old docs might not have `officeId`.
-       * Don't wanna take the risk of crashes.
-       */
-      officeId,
-    }),
-    rootCollections.offices.doc(officeId).get(),
-  ]);
-
-  console.log('officeDoc', officeDoc);
-  console.log('beneficiaryId', beneficiaryId);
-
-  // This case should currently never happen because
-  // user will have at least one role.
-  // the fallback is check-in subscription activityId
-  if (!beneficiaryId) {
-    return;
-  }
+  const { amount: oldAmount = 0 } = reimbursementDocOldState.data() || {};
+  const officeDoc = await rootCollections.offices.doc(officeId).get();
 
   const reimbursementFrequency =
     officeDoc.get('attachment.Reimbursement Frequency.value') ||
@@ -247,51 +168,25 @@ const reimbursementHandler = async (change, context) => {
         cycleEnd,
       });
 
-  console.log('ref', ref.path);
-
   data.linkedReimbursements = data.linkedReimbursements || [];
   data.linkedReimbursements.push(change.after.id);
 
   const amount = (() => {
     if (!firstVoucherDoc) {
       // doc will be created in this instance
-      return Dinero({
-        currency,
-        amount: Number(newAmount),
-      }).getAmount();
+      return currencyJs(newAmount);
     }
 
     if (claimId && status === 'CANCELLED') {
-      return Dinero({
-        currency,
-        amount: Number(data.amount),
-      })
-        .subtract(
-          Dinero({
-            currency,
-            amount: Number(newAmount),
-          }),
-        )
-        .getAmount();
+      return currencyJs(data.amount).subtract(currencyJs(newAmount));
     }
 
-    const diff = Dinero({
-      currency,
-      amount: Number(newAmount),
-    }).subtract(
-      Dinero({
-        currency,
-        amount: Number(oldAmount),
-      }),
+    return currencyJs(data.amount).add(
+      currencyJs(newAmount).subtract(oldAmount),
     );
-
-    return Dinero({
-      currency,
-      amount: Number(data.amount),
-    })
-      .add(diff)
-      .getAmount();
   })();
+
+  const userRecord = await getAuth(phoneNumber);
 
   batch.set(
     ref,
@@ -301,12 +196,22 @@ const reimbursementHandler = async (change, context) => {
       beneficiaryId,
       cycleStart,
       cycleEnd,
-      amount: `${Number(data.amount) + Number(amount)}`,
+      phoneNumber,
+      createdAt: firstVoucherDoc
+        ? firstVoucherDoc.createTime.toMillis()
+        : Date.now(),
+      updatedAt: Date.now(),
+      amount: currencyJs(data.amount)
+        .add(amount)
+        .toString(),
       batchId: data.batchId || null,
       type: addendumTypes.REIMBURSEMENT,
       timestamp: Date.now(),
+      photoURL: userRecord.photoURL || '',
+      email: userRecord.email || '',
+      displayName: userRecord.displayName || '',
     }),
-    {merge: true},
+    { merge: true },
   );
 
   return batch.commit();

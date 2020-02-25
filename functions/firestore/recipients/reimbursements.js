@@ -25,10 +25,10 @@
 
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
-const {rootCollections} = require('../../admin/admin');
-const {dateFormats, subcollectionNames} = require('../../admin/constants');
-const {getNumbersbetween} = require('../../admin/utils');
-const {toMapsUrl, alphabetsArray} = require('./report-utils');
+const { rootCollections } = require('../../admin/admin');
+const { dateFormats, subcollectionNames } = require('../../admin/constants');
+const { getNumbersbetween } = require('../../admin/utils');
+const { toMapsUrl, alphabetsArray } = require('./report-utils');
 
 const getSheets = async (date = '') => {
   const worksheetRef = await xlsxPopulate.fromBlankAsync();
@@ -78,7 +78,7 @@ const getSheets = async (date = '') => {
   };
 };
 
-const getReimbursementPromises = ({dates, month, year, officeId}) => {
+const getReimbursementPromises = ({ dates, month, year, officeId }) => {
   return dates.map(date =>
     rootCollections.offices
       .doc(officeId)
@@ -173,7 +173,7 @@ const reimbursementsReport = async locals => {
     Promise.all([...p1, ...p2]),
   ]);
 
-  const {dataSheet, summarySheet, worksheetRef} = sheetsResult;
+  const { dataSheet, summarySheet, worksheetRef } = sheetsResult;
 
   reimbursementSnaps.forEach(snap => {
     snap.forEach(doc => {
@@ -283,7 +283,7 @@ const reimbursementsReport = async locals => {
   let summarySheetCounter = 2;
   totalAmountByDate.forEach((amount, key) => {
     const [phoneNumber, dateString] = key.split('__');
-    const {employeeName, employeeCode, baseLocation, region, department} =
+    const { employeeName, employeeCode, baseLocation, region, department } =
       detailsMap.get(phoneNumber) || {};
 
     summarySheet.cell(`A${summarySheetCounter}`).value(employeeName);

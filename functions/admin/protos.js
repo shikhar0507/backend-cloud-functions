@@ -40,7 +40,7 @@ const validateSchedules = scheduleArray => {
   };
 
   scheduleArray.forEach((schedule, index) => {
-    const {startTime, endTime, name} = schedule;
+    const { startTime, endTime, name } = schedule;
 
     if (typeof startTime === 'undefined' || typeof endTime === 'undefined') {
       result.message.push(`Invalid Schedule at index: ${index}`);
@@ -77,7 +77,7 @@ const validateVenues = venue => {
   };
 
   venue.forEach((object, index) => {
-    const {venueDescriptor, address, location, geopoint} = object;
+    const { venueDescriptor, address, location, geopoint } = object;
 
     if (
       !isNonEmptyString(venueDescriptor) ||
@@ -189,7 +189,7 @@ class Activity {
       );
     }
 
-    const {displayName, phoneNumber, photoURL} = creator;
+    const { displayName, phoneNumber, photoURL } = creator;
 
     if (typeof displayName !== 'string') {
       throw new Error('The displayName should be a string');

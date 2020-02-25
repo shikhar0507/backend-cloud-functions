@@ -30,9 +30,9 @@ const {
   hasSupportClaims,
   isNonEmptyString,
 } = require('../admin/utils');
-const {code} = require('../admin/responses');
-const {auth, rootCollections} = require('../admin/admin');
-const {sendGridTemplateIds} = require('../admin/constants');
+const { code } = require('../admin/responses');
+const { auth, rootCollections } = require('../admin/admin');
+const { sendGridTemplateIds } = require('../admin/constants');
 const sgMail = require('@sendgrid/mail');
 const env = require('../admin/env');
 
@@ -69,7 +69,7 @@ const validateRequestBody = requestBody => {
 };
 
 const sendCustomVerificationEmail = options => {
-  const {displayName, email, phoneNumber, uid} = options;
+  const { displayName, email, phoneNumber, uid } = options;
 
   console.log('Email Sent', options);
 
@@ -114,7 +114,7 @@ const getAuth = (phoneNumber, displayName, email) => {
 };
 
 const createVerificationFlow = options => {
-  const {displayName, email, uid, phoneNumber, photoURL} = options;
+  const { displayName, email, uid, phoneNumber, photoURL } = options;
 
   console.log('Options', options);
 

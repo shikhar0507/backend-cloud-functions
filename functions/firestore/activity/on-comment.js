@@ -23,11 +23,11 @@
 
 'use strict';
 
-const {isValidRequestBody} = require('./helper');
-const {code} = require('../../admin/responses');
-const {httpsActions} = require('../../admin/constants');
-const {db, rootCollections, getGeopointObject} = require('../../admin/admin');
-const {handleError, sendResponse} = require('../../admin/utils');
+const { isValidRequestBody } = require('./helper');
+const { code } = require('../../admin/responses');
+const { httpsActions } = require('../../admin/constants');
+const { db, rootCollections, getGeopointObject } = require('../../admin/admin');
+const { handleError, sendResponse } = require('../../admin/utils');
 
 const createDocs = (conn, activity) => {
   const batch = db.batch();

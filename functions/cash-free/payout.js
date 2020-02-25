@@ -32,9 +32,9 @@ const crypto = require('crypto');
 const env = require('../admin/env');
 const CLIENT_ID = env.cashFree.payout.clientId;
 const CLIENT_SECRET = env.cashFree.payout.clientSecret;
-const {promisify} = require('util');
-const {rootCollections} = require('../admin/admin');
-const {getISO8601Date} = require('../admin/utils');
+const { promisify } = require('util');
+const { rootCollections } = require('../admin/admin');
+const { getISO8601Date } = require('../admin/utils');
 
 const endpoint = (() => {
   if (env.isProduction) {
@@ -95,7 +95,7 @@ const verifyAuthToken = async authToken => {
 const getBearerToken = async () => {
   const timerDoc = await rootCollections.timers.doc(getISO8601Date()).get();
 
-  const {cashFree} = timerDoc.data() || {};
+  const { cashFree } = timerDoc.data() || {};
 
   // Token is already present
   if (cashFree && cashFree.payout) {
@@ -125,23 +125,12 @@ const getBearerToken = async () => {
   return `Bearer ${authTokenResponse.data.token}`;
 };
 
-const getHeaders = async () => {
-  return {
-    Authorization: await getBearerToken(),
-  };
-};
+const getHeaders = async () => ({
+  Authorization: await getBearerToken(),
+});
 
-const requestTransfer = async options => {
+const requestTransfer = async ({ remarks, beneId, amount }) => {
   const uri = url.resolve(endpoint, '/payout/v1/requestTransfer');
-  const {remarks, beneId, amount} = options;
-
-  const TRANSFER_MODES = {
-    BANK_TRANSFER: 'banktransfer',
-    UPI: 'upi',
-    PAYTM: 'paytm',
-    AMAZON_PAY: 'amazonpay',
-    CARD: 'card',
-  };
 
   return rpn(uri, {
     headers: await getHeaders(),
@@ -151,15 +140,14 @@ const requestTransfer = async options => {
       beneId,
       amount,
       transferId: crypto.randomBytes(16).toString('hex'),
-      transferMode: options.transferMode || TRANSFER_MODES.BANK_TRANSFER,
+      transferMode: 'banktransfer',
     },
     json: true,
   });
 };
 
-const getTransferStatus = async options => {
+const getTransferStatus = async ({ referenceId, transferId }) => {
   const uri = url.resolve(endpoint, '/payout/v1/getTransferStatus');
-  const {referenceId, transferId} = options;
 
   return rpn(uri, {
     json: true,
@@ -172,9 +160,7 @@ const getTransferStatus = async options => {
   });
 };
 
-const validateBank = async options => {
-  const {name, phone, bankAccount, ifsc} = options;
-
+const validateBank = async ({ name, phone, bankAccount, ifsc }) => {
   const uri = url.resolve(endpoint, '/payout/v1/validation/bankDetails');
 
   return rpn(uri, {
@@ -190,7 +176,15 @@ const validateBank = async options => {
   });
 };
 
-const addBeneficiary = async options => {
+const addBeneficiary = async ({
+  beneId,
+  name,
+  email,
+  phone,
+  bankAccount,
+  ifsc,
+  address1,
+}) => {
   const uri = url.resolve(endpoint, '/payout/v1/addBeneficiary');
 
   return rpn(uri, {
@@ -198,13 +192,13 @@ const addBeneficiary = async options => {
     json: true,
     headers: await getHeaders(),
     body: {
-      beneId: options.beneId,
-      name: options.name,
-      email: options.email,
-      phone: options.phone,
-      bankAccount: options.bankAccount,
-      ifsc: options.ifsc,
-      address1: options.address1,
+      beneId,
+      name,
+      email,
+      phone,
+      bankAccount,
+      ifsc,
+      address1,
     },
   });
 };
@@ -231,22 +225,6 @@ const removeBeneficiary = async beneId => {
   });
 };
 
-const verifyWebhookPost = (webhookData, clientSecret) => {
-  let concatenatedValues = '';
-  const receivedSignature = webhookData.signature;
-  delete webhookData.signature;
-  const sortedKeys = Object.keys(webhookData).sort();
-
-  sortedKeys.forEach(key => (concatenatedValues += `${webhookData[key]}`));
-
-  const calculatedSignature = crypto
-    .createHmac('sha256', clientSecret)
-    .update(concatenatedValues)
-    .digest('base64');
-
-  return calculatedSignature === receivedSignature;
-};
-
 const getBalance = async () => {
   const uri = url.resolve(endpoint, '/payout/v1/getBalance');
 
@@ -256,29 +234,28 @@ const getBalance = async () => {
   });
 };
 
-const selfWithdrawal = async options => {
-  const uri = url.resolve(endpoint, '/payout/v1/selfWithdrawal');
+const requestBatchTransfer = async ({ batchTransferId, batch }) => {
+  const uri = url.resolve(endpoint, '/payout/v1/requestBatchTransfer');
 
   return rpn(uri, {
     headers: await getHeaders(),
     json: true,
     method: 'POST',
     body: {
-      amount: options.amount,
-      remarks: options.remarks,
-      withdrawalId: crypto.randomBytes(16).toString('hex'),
+      batch,
+      batchTransferId,
+      batchFormat: 'BANK_ACCOUNT',
     },
   });
 };
 
 module.exports = {
+  requestBatchTransfer,
   getBalance,
   validateBank,
-  selfWithdrawal,
   getBeneficiary,
   addBeneficiary,
   requestTransfer,
-  verifyWebhookPost,
   removeBeneficiary,
   getTransferStatus,
 };

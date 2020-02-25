@@ -1,8 +1,8 @@
-const {db} = require('../../admin/admin');
+const { db } = require('../../admin/admin');
 const momentTz = require('moment-timezone');
 const XlsxPopulate = require('xlsx-populate');
-const {dateFormats} = require('../../admin/constants');
-const {alphabetsArray} = require('./report-utils');
+const { dateFormats } = require('../../admin/constants');
+const { alphabetsArray } = require('./report-utils');
 const sgMail = require('@sendgrid/mail');
 const env = require('../../admin/env');
 sgMail.setApiKey(env.sgMailApiKey);
@@ -103,7 +103,7 @@ const maileventInitReport = async () => {
       });
 
       const maileventGroupedData = sortedQuery.reduce((mainkey, a) => {
-        const {email, office, reportName, event, timestamp} = a;
+        const { email, office, reportName, event, timestamp } = a;
 
         mainkey[email] = [
           ...(mainkey[email] || []),
@@ -196,7 +196,7 @@ const maileventInitReport = async () => {
         //pick certain fields from array of objects
 
         const newArray = docs.map(
-          ({report, rowsCount, totalUsers, office, timestamp}) => ({
+          ({ report, rowsCount, totalUsers, office, timestamp }) => ({
             report,
             rowsCount,
             totalUsers,
@@ -218,7 +218,7 @@ const maileventInitReport = async () => {
         });
 
         const initGroupedData = newArray.reduce((mainkeys, a) => {
-          const {report, totalUsers, office, timestamp, rowsCount} = a;
+          const { report, totalUsers, office, timestamp, rowsCount } = a;
 
           mainkeys[report] = [
             ...(mainkeys[report] || []),
@@ -235,20 +235,20 @@ const maileventInitReport = async () => {
         const initData = Object.entries(initGroupedData);
 
         const report = initData.flatMap(([k, v]) =>
-          v.map(({report}) => report),
+          v.map(({ report }) => report),
         );
         const rowsCount = initData.flatMap(([k, v]) =>
-          v.map(({rowsCount}) => rowsCount),
+          v.map(({ rowsCount }) => rowsCount),
         );
         const totalUsers = initData.flatMap(([k, v]) =>
-          v.map(({totalUsers}) => totalUsers),
+          v.map(({ totalUsers }) => totalUsers),
         );
         const office = initData.flatMap(([k, v]) =>
-          v.map(({office}) => office),
+          v.map(({ office }) => office),
         );
 
         const timestamp = initData.flatMap(([k, v]) =>
-          v.map(({timestamp}) => timestamp),
+          v.map(({ timestamp }) => timestamp),
         );
         const initRecord = [];
         for (let i = 0; i < report.length; i++) {
@@ -311,4 +311,4 @@ const maileventInitReport = async () => {
   }
 };
 
-module.exports = {maileventInitReport};
+module.exports = { maileventInitReport };

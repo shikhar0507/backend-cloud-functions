@@ -32,9 +32,9 @@ const {
   getFileHash,
   promisifiedExecFile,
 } = require('../admin/utils');
-const {rootCollections} = require('../admin/admin');
-const {auth} = require('../admin/admin');
-const {code} = require('../admin/responses');
+const { rootCollections } = require('../admin/admin');
+const { auth } = require('../admin/admin');
+const { code } = require('../admin/responses');
 const fs = require('fs');
 const url = require('url');
 const mozjpeg = require('mozjpeg');
@@ -156,11 +156,11 @@ module.exports = conn => {
           fs.unlinkSync(originalFilePath);
         }
 
-        return auth.updateUser(conn.requester.uid, {photoURL});
+        return auth.updateUser(conn.requester.uid, { photoURL });
       } catch (error) {
         console.warn('Error:', error);
 
-        return auth.updateUser(conn.requester.uid, {photoURL});
+        return auth.updateUser(conn.requester.uid, { photoURL });
       }
     })
     .then(() => sendResponse(conn, code.ok))

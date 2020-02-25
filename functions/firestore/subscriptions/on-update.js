@@ -23,11 +23,11 @@
 
 'use strict';
 
-const {rootCollections, db} = require('../../admin/admin');
-const {subcollectionNames, addendumTypes} = require('../../admin/constants');
+const { rootCollections, db } = require('../../admin/admin');
+const { subcollectionNames, addendumTypes } = require('../../admin/constants');
 
 const pushUpdatedTemplates = async (query, templateDoc) => {
-  const {name: template} = templateDoc.data();
+  const { name: template } = templateDoc.data();
   const authPromises = [];
   const uidMap = new Map();
   const templateUpdate = {
@@ -77,8 +77,8 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
       return;
     }
 
-    const {id: uid} = doc;
-    const {phoneNumber} = doc.data();
+    const { id: uid } = doc;
+    const { phoneNumber } = doc.data();
 
     uidMap.set(phoneNumber, uid);
   });
@@ -86,7 +86,7 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
   const batch = db.batch();
 
   docs.forEach(subscription => {
-    const {office, status} = subscription.data();
+    const { office, status } = subscription.data();
 
     const data = Object.assign({}, templateUpdate, {
       office,
@@ -103,8 +103,6 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
       .doc();
-
-    console.log(ref.path);
 
     batch.set(ref, data);
   });
@@ -150,7 +148,7 @@ module.exports = change => {
     templateName,
   });
 
-  const {after: templateDoc} = change;
+  const { after: templateDoc } = change;
 
   try {
     return pushUpdatedTemplates(null, templateDoc);

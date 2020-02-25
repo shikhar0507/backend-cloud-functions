@@ -23,8 +23,8 @@
 
 'use strict';
 
-const {subcollectionNames} = require('../../admin/constants');
-const {rootCollections, db} = require('../../admin/admin');
+const { subcollectionNames } = require('../../admin/constants');
+const { rootCollections, db } = require('../../admin/admin');
 const admin = require('firebase-admin');
 
 const getChildDoc = async ({
@@ -43,13 +43,13 @@ const getChildDoc = async ({
   }
 
   if (template === 'recipient') {
-    const [recipientDoc] = (
-      await rootCollections.recipients
-        .where('report', '==', report)
-        .where('officeId', '==', officeId)
-        .limit(1)
-        .get()
-    ).docs;
+    const {
+      docs: [recipientDoc],
+    } = await rootCollections.recipients
+      .where('report', '==', report)
+      .where('officeId', '==', officeId)
+      .limit(1)
+      .get();
 
     return recipientDoc;
   }
@@ -57,7 +57,7 @@ const getChildDoc = async ({
   return null;
 };
 
-const getSubcriptionActivityQuery = ({officeId, phoneNumber, template}) => {
+const getSubcriptionActivityQuery = ({ officeId, phoneNumber, template }) => {
   return rootCollections.activities
     .where('officeId', '==', officeId)
     .where('template', '==', 'subscription')
@@ -82,7 +82,7 @@ const getSubcriptionActivityQuery = ({officeId, phoneNumber, template}) => {
  * @param {Object} context Data related to the `onDelete` event.
  * @returns {Promise <Object>} Firestore `Batch` object.
  */
-const assigneeOnDelete = async ({phoneNumber, activityId}) => {
+const assigneeOnDelete = async ({ phoneNumber, activityId }) => {
   const profileRef = rootCollections.profiles.doc(phoneNumber);
   const timestamp = Date.now();
   const batch = db.batch();
@@ -91,16 +91,8 @@ const assigneeOnDelete = async ({phoneNumber, activityId}) => {
     profileRef,
     rootCollections.activities.doc(activityId),
   );
-  const {uid} = profileDoc.data();
-  const {hidden, template, officeId} = activityDoc.data();
-
-  console.log({
-    phoneNumber,
-    activityId,
-    template,
-    uid,
-    hidden,
-  });
+  const { uid } = profileDoc.data();
+  const { hidden, template, officeId } = activityDoc.data();
 
   /**
    * Delete Activity from profile
@@ -148,7 +140,7 @@ const assigneeOnDelete = async ({phoneNumber, activityId}) => {
    * Eg. In case of recipient, if the activity status is CANCELLED
    * the doc in Recipients/{activityId} will not exist.
    */
-  if (doc) {
+  if (doc && doc.data()) {
     console.log('childDoc', doc);
 
     batch.set(
@@ -156,9 +148,7 @@ const assigneeOnDelete = async ({phoneNumber, activityId}) => {
       Object.assign({}, doc.data(), {
         include: admin.firestore.FieldValue.arrayRemove(phoneNumber),
       }),
-      {
-        merge: true,
-      },
+      { merge: true },
     );
   }
 
@@ -166,7 +156,7 @@ const assigneeOnDelete = async ({phoneNumber, activityId}) => {
     // fetch leave, check-in, attendance regularization subscription
     // of the user (attachment.Phone Number.value)
     // unassign the number phoneNumber from those activities
-    const {value: subscribersPhoneNumber} = activityDoc.get(
+    const { value: subscribersPhoneNumber } = activityDoc.get(
       'attachment.Phone Number',
     );
 
@@ -188,22 +178,20 @@ const assigneeOnDelete = async ({phoneNumber, activityId}) => {
       }),
     ]);
 
-    const [checkInSubActivity] = checkInSub.docs;
-    const [leaveSubActivity] = leaveSub.docs;
-    const [arSubActivity] = arSub.docs;
+    const {
+      docs: [checkInSubActivity],
+    } = checkInSub;
+    const {
+      docs: [leaveSubActivity],
+    } = leaveSub;
+    const {
+      docs: [arSubActivity],
+    } = arSub;
 
-    const update = {
-      addendumDocRef: null,
-      timestamp: Date.now(),
-    };
-    const merge = {
-      merge: true,
-    };
+    const update = { addendumDocRef: null, timestamp: Date.now() };
 
     if (checkInSubActivity) {
-      console.log('deleting from check-in', checkInSubActivity.id);
-
-      batch.set(checkInSubActivity.ref, update, merge);
+      batch.set(checkInSubActivity.ref, update, { merge: true });
 
       batch.delete(
         checkInSubActivity.ref
@@ -213,8 +201,7 @@ const assigneeOnDelete = async ({phoneNumber, activityId}) => {
     }
 
     if (leaveSubActivity) {
-      console.log('deleting from leave', leaveSubActivity.id);
-      batch.set(leaveSubActivity.ref, update, merge);
+      batch.set(leaveSubActivity.ref, update, { merge: true });
 
       batch.delete(
         leaveSubActivity.ref
@@ -224,8 +211,7 @@ const assigneeOnDelete = async ({phoneNumber, activityId}) => {
     }
 
     if (arSubActivity) {
-      console.log('deleting from ar', arSubActivity.id);
-      batch.set(arSubActivity.ref, update, merge);
+      batch.set(arSubActivity.ref, update, { merge: true });
 
       batch.delete(
         arSubActivity.ref

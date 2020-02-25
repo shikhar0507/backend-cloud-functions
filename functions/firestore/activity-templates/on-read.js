@@ -23,8 +23,8 @@
 
 'use strict';
 
-const {rootCollections} = require('../../admin/admin');
-const {code} = require('../../admin/responses');
+const { rootCollections } = require('../../admin/admin');
+const { code } = require('../../admin/responses');
 const {
   sendJSON,
   handleError,

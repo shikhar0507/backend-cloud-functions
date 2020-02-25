@@ -24,8 +24,8 @@
 'use strict';
 
 const crypto = require('crypto');
-const {db, rootCollections} = require('../../../admin/admin');
-const {activityName, createAutoSubscription} = require('../helper');
+const { db, rootCollections } = require('../../../admin/admin');
+const { activityName, createAutoSubscription } = require('../helper');
 const {
   slugify,
   getAuth,
@@ -38,7 +38,7 @@ const {
   httpsActions,
   subcollectionNames,
 } = require('../../../admin/constants');
-const {createVirtualAccount} = require('../../../cash-free/autocollect');
+const { createVirtualAccount } = require('../../../cash-free/autocollect');
 const env = require('../../../admin/env');
 const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
@@ -119,7 +119,7 @@ const getFullBranchActivity = async placeid => {
     })
     .asPromise();
 
-  const {address_components: addressComponents} = result.json.result;
+  const { address_components: addressComponents } = result.json.result;
 
   const branchName = getBranchName(addressComponents);
   const branchOffice = {
@@ -296,7 +296,7 @@ const getFullBranchActivity = async placeid => {
 
 const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
   const batch = db.batch();
-  const {officeId} = locals.change.after.data();
+  const { officeId } = locals.change.after.data();
   const addendumDocRef = rootCollections.offices
     .doc(officeId)
     .collection(subcollectionNames.ADDENDUM)
@@ -363,7 +363,7 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
 };
 
 const createBranches = async locals => {
-  const {office} = locals.change.after.data();
+  const { office } = locals.change.after.data();
 
   if (!isActivityCreated(locals.change)) {
     return;
@@ -420,13 +420,13 @@ const createBranches = async locals => {
 };
 
 const cancelAdmin = async (officeId, phoneNumber) => {
-  const docs = await rootCollections.activities
+  const {
+    docs: [doc],
+  } = await rootCollections.activities
     .where('officeId', '==', officeId)
     .where('template', '==', 'admin')
     .where('attachment.Phone Number.value', '==', phoneNumber)
     .get();
-
-  const [doc] = docs.docs;
 
   if (!doc || doc.get('status') === 'CANCELLED') {
     return;
@@ -438,58 +438,73 @@ const cancelAdmin = async (officeId, phoneNumber) => {
       addendumDocRef: null,
       status: 'CANCELLED',
     },
-    {
-      merge: true,
-    },
+    { merge: true },
   );
 };
 
 const createFootprintsRecipient = async locals => {
+  const batch = db.batch();
+  const template = 'recipient';
+  const { id: officeId } = locals.change.after;
   const activityRef = rootCollections.activities.doc();
-  const officeId = locals.change.after.id;
   const addendumDocRef = rootCollections.offices
     .doc(officeId)
     .collection(subcollectionNames.ADDENDUM)
     .doc();
-  const batch = db.batch();
 
   const [
-    recipientTemplateQueryResult,
-    recipientActivityQueryResult,
+    {
+      docs: [recipientTemplate],
+    },
+    {
+      docs: [footprintsRecipientActivity],
+    },
   ] = await Promise.all([
-    rootCollections.activityTemplates.where('name', '==', 'recipient').get(),
+    rootCollections.activityTemplates
+      .where('name', '==', template)
+      .limit(1)
+      .get(),
     rootCollections.activities
-      .where('template', '==', 'recipient')
+      .where('template', '==', template)
+      .where('officeId', '==', officeId)
       .where('attachment.Name.value', '==', reportNames.FOOTPRINTS)
       .limit(1)
       .get(),
   ]);
 
-  if (!recipientActivityQueryResult.empty) {
+  if (footprintsRecipientActivity) {
     return;
   }
 
-  const attachment = recipientTemplateQueryResult.docs[0].get('attachment');
+  const { attachment, venue, schedule } = recipientTemplate.data();
+
   attachment.Name.value = 'footprints';
 
   const activityData = {
     addendumDocRef,
     attachment,
-    timezone: locals.change.after.get('attachment.Timezone.value'),
-    venue: [],
-    schedule: [],
+    template,
+    venue: venue.map(venueDescriptor => ({
+      venueDescriptor,
+      address: '',
+      location: '',
+      geopoint: { latitude: '', longitude: '' },
+    })),
+    schedule: schedule.map(name => ({ name, startTime: '', endTime: '' })),
     timestamp: Date.now(),
-    status: recipientTemplateQueryResult.docs[0].get('statusOnCreate'),
+    timezone: locals.change.after.get('attachment.Timezone.value'),
+    status: recipientTemplate.get('statusOnCreate'),
     office: locals.change.after.get('office'),
     activityName: 'RECIPIENT: FOOTPRINTS REPORT',
-    canEditRule: recipientTemplateQueryResult.docs[0].get('canEditRule'),
-    template: 'recipient',
+    canEditRule: recipientTemplate.get('canEditRule'),
     officeId: locals.change.after.id,
     creator: locals.change.after.get('creator'),
     createTimestamp: Date.now(),
   };
 
-  const momentNow = momentTz().tz(locals.change.after.get('timezone'));
+  const momentNow = momentTz().tz(
+    locals.change.after.get('timezone') || 'Asia/Kolkata',
+  );
 
   const addendumDocData = {
     activityData,
@@ -502,11 +517,14 @@ const createFootprintsRecipient = async locals => {
     template: 'recipient',
     isAutoGenerated: true,
     timestamp: Date.now(),
-    userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+    userDeviceTimestamp: Date.now(),
     activityId: activityRef.id,
-    location: locals.addendumDoc.get('location'),
-    isSupportRequest: locals.addendumDoc.get('isSupportRequest') || false,
-    isAdminRequest: locals.addendumDoc.get('isAdminRequest') || false,
+    location: locals.addendumDoc ? locals.addendumDoc.get('location') : null,
+    isSupportRequest: locals.addendumDoc
+      ? locals.addendumDoc.get('isSupportRequest')
+      : false,
+    isAdminRequest:
+      locals.addendumDoc && (locals.addendumDoc.get('isAdminRequest') || false),
     geopointAccuracy: null,
     provider: null,
   };
@@ -514,21 +532,20 @@ const createFootprintsRecipient = async locals => {
   locals.assigneePhoneNumbersArray.forEach(phoneNumber => {
     batch.set(
       activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
-      {
-        addToInclude: false,
-      },
+      { addToInclude: false },
     );
   });
 
   batch.set(activityRef, activityData);
-
   batch.set(addendumDocRef, addendumDocData);
 
   return batch.commit();
 };
 
 const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
-  const [doc] = await rootCollections.activities
+  const {
+    docs: [doc],
+  } = await rootCollections.activities
     .where('officeId', '==', officeId)
     .where('template', '==', 'subscription')
     .where('attachment.Template.value', '==', 'subscription')
@@ -546,78 +563,9 @@ const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
       addendumDocRef: null,
       status: 'CANCELLED',
     },
-    {
-      merge: true,
-    },
+    { merge: true },
   );
 };
-
-// const mangeYouTubeDataApi = async locals => {
-//   const {
-//     template,
-//     attachment,
-//   } = locals.change.after.data();
-//   const {
-//     'Youtube ID': youtubeVideoId,
-//   } = attachment;
-
-//   if (template !== 'office' ||
-//     !env.isProduction) {
-//     return;
-//   }
-
-//   const youtube = google.youtube('v3');
-//   const auth = await google.auth.getClient({
-//     credentials: require('../../admin/cert.json'),
-//     scopes: [
-//       'https://www.googleapis.com/auth/youtube.force-ssl',
-//       'https://www.googleapis.com/auth/youtube'
-//     ],
-//   });
-
-//   if (!youtubeVideoId) {
-//     return;
-//   }
-
-//   const oldTitle = locals
-//     .change
-//     .before
-//     .get('office');
-//   const newTitle = locals
-//     .change
-//     .after
-//     .get('office');
-//   const oldDescription = locals
-//     .change
-//     .before
-//     .get('attachment.Description.value');
-//   const newDescription = locals
-//     .change
-//     .after
-//     .get('attachment.Description.value');
-
-//   if (oldTitle === newTitle &&
-//     oldDescription === newDescription) {
-//     return;
-//   }
-
-//   const opt = {
-//     auth,
-//     part: 'snippet',
-//     requestBody: {
-//       id: youtubeVideoId,
-//       snippet: {
-//         categoryId: 22, // People & Blogs
-//         title: newTitle,
-//         description: newDescription,
-//       },
-//     },
-//   };
-
-//   return youtube
-//     .videos
-//     .update(opt);
-// };
 
 const handleSitemap = async locals => {
   const path = 'sitemap';
@@ -667,10 +615,10 @@ const createOfficeVirtualAccount = async locals => {
     return;
   }
 
-  const {value: firstContact} = locals.change.after.get(
+  const { value: firstContact } = locals.change.after.get(
     'attachment.First Contact',
   );
-  const {value: secondContact} = locals.change.after.get(
+  const { value: secondContact } = locals.change.after.get(
     'attachment.Second Contact',
   );
 
@@ -728,7 +676,7 @@ const createOfficeVirtualAccount = async locals => {
 };
 
 const handleOffice = async locals => {
-  const {value: firstContactNew} = locals.change.after.get(
+  const { value: firstContactNew } = locals.change.after.get(
     'attachment.First Contact',
   );
   const firstContactOld = locals.change.before.get(
@@ -761,10 +709,8 @@ const handleOffice = async locals => {
   await createAutoSubscription(locals, 'subscription', secondContactNew);
   await createBranches(locals);
   await handleSitemap(locals);
-  await createOfficeVirtualAccount(locals);
 
-  // return mangeYouTubeDataApi(locals);
-  return;
+  return createOfficeVirtualAccount(locals);
 };
 
 module.exports = handleOffice;

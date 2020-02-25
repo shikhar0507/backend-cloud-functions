@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {rootCollections} = require('../admin/admin');
-const {getFileHash, sendJSON, sendResponse} = require('../admin/utils');
-const {code} = require('../admin/responses');
+const { rootCollections } = require('../admin/admin');
+const { getFileHash, sendJSON, sendResponse } = require('../admin/utils');
+const { code } = require('../admin/responses');
 const rpn = require('request-promise-native');
 const fs = require('fs');
 const env = require('../admin/env');
@@ -75,7 +75,7 @@ const setImgUrl = async ({
   }
 
   try {
-    fs.writeFileSync(filePath, base64, {encoding: 'base64'});
+    fs.writeFileSync(filePath, base64, { encoding: 'base64' });
     const fileBuffer = fs.readFileSync(filePath);
     const uploadUri = url.resolve(
       apiUrl,
@@ -111,7 +111,7 @@ const setImgUrl = async ({
     // Adding { json:true } in the options, results
     // in ERROR: Connection reset. Skipping that option
     // and parsing the response fixes it.
-    const {fileId} = JSON.parse(step2);
+    const { fileId } = JSON.parse(step2);
     const final = (() => {
       if (env.isProduction) {
         return (
@@ -159,11 +159,11 @@ module.exports = async conn => {
     return sendResponse(conn, code.badRequest, v);
   }
 
-  const {aadhar, pan} = conn.req.body;
+  const { aadhar, pan } = conn.req.body;
   const frontAadharEnc = aadhar.front.split(';base64,').pop();
   const backAadharEnc = aadhar.back.split(';base64,').pop();
   const frontPanEnc = pan.front.split(';base64,').pop();
-  const {phoneNumber, uid} = conn.requester;
+  const { phoneNumber, uid } = conn.requester;
 
   const [timerDoc] = (
     await rootCollections.timers
@@ -172,9 +172,9 @@ module.exports = async conn => {
       .get()
   ).docs;
 
-  const {backblazeAuthorizationToken, apiUrl} = timerDoc.data();
+  const { backblazeAuthorizationToken, apiUrl } = timerDoc.data();
   const updatesDoc = await rootCollections.updates.doc(uid).get();
-  const {idProof} = updatesDoc.data();
+  const { idProof } = updatesDoc.data();
 
   const responseObject = {
     aadhar: {

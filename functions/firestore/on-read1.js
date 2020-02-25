@@ -23,15 +23,17 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../admin/admin');
-const {code} = require('../admin/responses');
-const {subcollectionNames, addendumTypes} = require('../admin/constants');
+const { db, rootCollections } = require('../admin/admin');
+const { code } = require('../admin/responses');
+const { subcollectionNames, addendumTypes } = require('../admin/constants');
 const {
   sendJSON,
   isValidDate,
   handleError,
   sendResponse,
+  getNumbersbetween,
   isNonEmptyString,
+  getDefaultAttendanceObject,
 } = require('../admin/utils');
 const momentTz = require('moment-timezone');
 
@@ -177,8 +179,8 @@ const activityFilter = (doc, customClaims, employeeOf, phoneNumber) => {
   }, result);
 };
 
-const subscriptionFilter = doc => {
-  return [
+const subscriptionFilter = doc =>
+  [
     'template',
     'schedule',
     'venue',
@@ -191,55 +193,71 @@ const subscriptionFilter = doc => {
 
     return prevObject;
   }, {});
-};
 
-const locationFilter = doc => {
-  return {
-    activityId: doc.id,
-    office: doc.get('office'),
-    officeId: doc.get('officeId'),
-    status: doc.get('status'),
-    template: doc.get('template'),
-    timestamp: doc.get('timestamp'),
-    address: doc.get('venue')[0].address,
-    location: doc.get('venue')[0].location,
-    latitude: doc.get('venue')[0].geopoint.latitude,
-    longitude: doc.get('venue')[0].geopoint.longitude,
-    venueDescriptor: doc.get('venue')[0].venueDescriptor,
-  };
-};
+const locationFilter = doc => ({
+  activityId: doc.id,
+  office: doc.get('office'),
+  officeId: doc.get('officeId'),
+  status: doc.get('status'),
+  template: doc.get('template'),
+  timestamp: doc.get('timestamp'),
+  address: doc.get('venue')[0].address,
+  location: doc.get('venue')[0].location,
+  latitude: doc.get('venue')[0].geopoint.latitude,
+  longitude: doc.get('venue')[0].geopoint.longitude,
+  venueDescriptor: doc.get('venue')[0].venueDescriptor,
+});
 
 const setAttendanceObjects = (attendanceQueryResult, jsonObject) => {
-  const [attendanceDoc] = attendanceQueryResult.docs;
+  const {
+    docs: [attendanceDoc],
+  } = attendanceQueryResult;
 
   if (!attendanceDoc) {
     return [];
   }
 
   const {
-    attendance,
     month,
     year,
     office,
     officeId,
     phoneNumber,
+    attendance = {},
   } = attendanceDoc.data();
   const timestamp = Date.now();
+  const dates = Object.keys(attendance).sort((a, b) => a - b);
+  const lastAvailableDate = Number(dates[dates.length - 1] || 1);
+  const monthEndMoment = momentTz()
+    .month(month)
+    .year(year)
+    .clone()
+    .endOf('month');
 
-  Object.entries(attendance || {}).forEach(entry => {
-    const [date, attendanceObjectForDate] = entry;
+  console.log({ lastAvailableDate, date: monthEndMoment.get('date') + 1 });
 
+  const probablyMissingDates = getNumbersbetween(
+    lastAvailableDate,
+    monthEndMoment.get('date') + 1,
+  );
+
+  probablyMissingDates.forEach(
+    date =>
+      (attendance[date] = attendance[date] || getDefaultAttendanceObject()),
+  );
+
+  Object.entries(attendance).forEach(([date, attendanceObjectForDate]) => {
     // No need to check for missing dates/or the sequence because
     // that data is of the past.
     jsonObject.attendances.push(
       Object.assign({}, attendanceObjectForDate, {
-        date,
-        month,
-        year,
         office,
         officeId,
         phoneNumber,
         timestamp,
+        date: Number(date),
+        month: Number(month),
+        year: Number(year),
         _type: addendumTypes.ATTENDANCE,
         id: `${date}${month}${year}${officeId}`,
         key: momentTz()
@@ -253,9 +271,11 @@ const setAttendanceObjects = (attendanceQueryResult, jsonObject) => {
   });
 };
 
-const getMonthlyAttendance = async ({officeId, phoneNumber, jsonObject}) => {
+const getMonthlyAttendance = async ({ officeId, phoneNumber, jsonObject }) => {
   const momentToday = momentTz();
   const momentPrevMonth = momentToday.clone().subtract(1, 'month');
+
+  console.log('sending attendances', officeId);
 
   const [
     currMonthAttendanceQueryResult,
@@ -286,7 +306,7 @@ const getMonthlyAttendance = async ({officeId, phoneNumber, jsonObject}) => {
 };
 
 const getSingleReimbursement = doc => {
-  const {date, month, year} = doc.data();
+  const { date, month, year } = doc.data();
 
   const geopointFilter = geopoint => {
     if (!geopoint) {
@@ -335,10 +355,15 @@ const getSingleReimbursement = doc => {
   };
 };
 
-const getMonthlyReimbursement = async ({officeId, phoneNumber, jsonObject}) => {
+const getMonthlyReimbursement = async ({
+  officeId,
+  phoneNumber,
+  jsonObject,
+}) => {
+  console.log('sending reimbursements', officeId);
+
   const momentToday = momentTz();
   const momentPrevMonth = momentToday.clone().subtract(1, 'month');
-
   const getReimbursementRef = (month, year) => {
     return rootCollections.offices
       .doc(officeId)
@@ -368,14 +393,55 @@ const getMonthlyReimbursement = async ({officeId, phoneNumber, jsonObject}) => {
   return;
 };
 
-const getProfileSubcollectionPromise = ({subcollection, phoneNumber, from}) => {
-  return rootCollections.profiles
+const getProducts = async ({
+  jsonObject,
+  phoneNumber,
+  officeId,
+  customClaims,
+  employeeOf,
+}) => {
+  // If user has subscription of duty OR call, send products from
+  // root collection => send products
+  const { empty } = await rootCollections.profiles
+    .doc(phoneNumber)
+    .collection(subcollectionNames.SUBSCRIPTIONS)
+    .where('template', 'in', ['duty', 'call'])
+    .limit(1)
+    .get();
+
+  if (empty) {
+    return [];
+  }
+
+  (
+    await rootCollections.activities
+      .where('officeId', '==', officeId)
+      .where('template', '==', 'product')
+      .where('status', 'in', ['CONFIRMED', 'PENDING'])
+      .get()
+  ).forEach(doc => {
+    jsonObject.products.push(
+      activityFilter(doc, customClaims, employeeOf, phoneNumber),
+    );
+  });
+
+  return;
+};
+
+const getActivityQueryByTemplate = ({ template, officeId }) =>
+  rootCollections.activities
+    .where('officeId', '==', officeId)
+    .where('template', '==', template)
+    .where('status', '==', 'CONFIRMED')
+    .get();
+
+const getProfileSubcollectionPromise = ({ subcollection, phoneNumber, from }) =>
+  rootCollections.profiles
     .doc(phoneNumber)
     .collection(subcollection)
     .where('timestamp', '>', from)
     .orderBy('timestamp', 'asc')
     .get();
-};
 
 const read = async conn => {
   const v = validateRequest(conn);
@@ -397,14 +463,13 @@ const read = async conn => {
   const isInitRequest = from === 0;
   const locationPromises = [];
   const templatePromises = [];
-  const attendancePromises = [];
-  const reimbursementPromises = [];
   const templatesMap = new Map();
   const sendLocations =
     profileDoc && profileDoc.get('lastLocationMapUpdateTimestamp') > from;
   const jsonObject = {
     from,
     upto: from,
+    products: [],
     addendum: [],
     activities: [],
     templates: [],
@@ -413,6 +478,7 @@ const read = async conn => {
     attendances: [],
     reimbursements: [],
   };
+
   const promises = [
     rootCollections.updates
       .doc(uid)
@@ -435,39 +501,15 @@ const read = async conn => {
         subcollection: subcollectionNames.SUBSCRIPTIONS,
       }),
     );
-
-    officeList.forEach(office => {
-      attendancePromises.push(
-        getMonthlyAttendance({
-          phoneNumber,
-          jsonObject,
-          officeId: employeeOf[office],
-        }),
-      );
-
-      reimbursementPromises.push(
-        getMonthlyReimbursement({
-          jsonObject,
-          phoneNumber,
-          officeId: employeeOf[office],
-        }),
-      );
-    });
   }
 
   if (sendLocations) {
-    officeList.forEach(name => {
+    officeList.forEach(office => {
+      const officeId = employeeOf[office];
+
       locationPromises.push(
-        rootCollections.activities
-          .where('officeId', '==', employeeOf[name])
-          .where('status', '==', 'CONFIRMED')
-          .where('template', '==', 'customer')
-          .get(),
-        rootCollections.activities
-          .where('officeId', '==', employeeOf[name])
-          .where('status', '==', 'CONFIRMED')
-          .where('template', '==', 'branch')
-          .get(),
+        getActivityQueryByTemplate({ template: 'customer', officeId }),
+        getActivityQueryByTemplate({ template: 'branch', officeId }),
       );
     });
   }
@@ -480,15 +522,10 @@ const read = async conn => {
      * modify the jsonObject which is why we are not using their
      * return values to iterate over the objects.
      **/
-  ] = await Promise.all([
-    Promise.all(promises),
-    Promise.all(locationPromises),
-    Promise.all(attendancePromises),
-    Promise.all(reimbursementPromises),
-  ]);
+  ] = await Promise.all([Promise.all(promises), Promise.all(locationPromises)]);
 
   (subscriptions || []).forEach(doc => {
-    const {template} = doc.data();
+    const { template } = doc.data();
 
     templatePromises.push(
       rootCollections.activityTemplates
@@ -499,7 +536,9 @@ const read = async conn => {
   });
 
   (await Promise.all(templatePromises)).forEach(templatesSnap => {
-    const [doc] = templatesSnap.docs;
+    const {
+      docs: [doc],
+    } = templatesSnap;
 
     if (!doc) {
       return;
@@ -509,7 +548,7 @@ const read = async conn => {
   });
 
   (subscriptions || []).forEach(doc => {
-    const {template, canEditRule} = doc.data();
+    const { template, canEditRule } = doc.data();
 
     templatePromises.push(
       rootCollections.activityTemplates
@@ -531,6 +570,7 @@ const read = async conn => {
 
     jsonObject.templates.push(
       Object.assign({}, subscriptionFilter(doc), {
+        activityId: doc.id,
         report: templateDoc.get('report') || null,
         schedule: templateDoc.get('schedule'),
         venue: templateDoc.get('venue'),
@@ -555,12 +595,14 @@ const read = async conn => {
   });
 
   addendum.forEach(doc => {
-    // 'type' is not required most probably. It's just
-    // there for legacy
     const type = doc.get('_type') || doc.get('type');
 
     if (type === addendumTypes.SUBSCRIPTION) {
-      jsonObject.templates.push(subscriptionFilter(doc));
+      jsonObject.templates.push(
+        Object.assign({}, subscriptionFilter(doc), {
+          activityId: doc.get('activityId'),
+        }),
+      );
 
       return;
     }
@@ -591,12 +633,16 @@ const read = async conn => {
       return;
     }
 
+    if (type === addendumTypes.PRODUCT) {
+      jsonObject.products.push(doc.data());
+
+      return;
+    }
+
     jsonObject.addendum.push(addendumFilter(doc));
   });
 
-  const profileUpdate = {
-    lastQueryFrom: from,
-  };
+  const profileUpdate = { lastQueryFrom: from };
 
   // This is only for keeping the log.
   if (sendLocations) {
@@ -612,6 +658,48 @@ const read = async conn => {
 
   if (!addendum.empty) {
     jsonObject.upto = addendum.docs[addendum.size - 1].get('timestamp');
+  }
+
+  if (isInitRequest) {
+    await Promise.all(
+      officeList.map(office =>
+        getProducts({
+          jsonObject,
+          customClaims,
+          employeeOf,
+          phoneNumber,
+          officeId: employeeOf[office],
+        }),
+      ),
+    );
+
+    const attendancePromises = [];
+    const reimbursementPromises = [];
+
+    officeList.forEach(office => {
+      const officeId = employeeOf[office];
+
+      attendancePromises.push(
+        getMonthlyAttendance({
+          phoneNumber,
+          jsonObject,
+          officeId,
+        }),
+      );
+
+      reimbursementPromises.push(
+        getMonthlyReimbursement({
+          jsonObject,
+          phoneNumber,
+          officeId,
+        }),
+      );
+    });
+
+    await Promise.all([
+      Promise.all(attendancePromises),
+      Promise.all(reimbursementPromises),
+    ]);
   }
 
   return sendJSON(conn, jsonObject);

@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {rootCollections} = require('../admin/admin');
+const { rootCollections } = require('../admin/admin');
 
 module.exports = (req, requester) => {
   console.log('requester', requester.customClaims.admin);
@@ -43,8 +43,6 @@ module.exports = (req, requester) => {
   const assigneePromises = [];
   const json = {};
   let failed = false;
-
-  console.log('query', req.query);
 
   let query = rootCollections.activities.where(
     'office',

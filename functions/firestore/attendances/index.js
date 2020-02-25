@@ -23,8 +23,8 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../../admin/admin');
-const {getNumbersbetween} = require('../../admin/utils');
+const { db, rootCollections } = require('../../admin/admin');
+const { getNumbersbetween, getAuth } = require('../../admin/utils');
 const {
   addendumTypes,
   subcollectionNames,
@@ -32,43 +32,7 @@ const {
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 
-const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
-  if (roleDoc && roleDoc.id) {
-    return roleDoc.id;
-  }
-
-  const [newRole] = (
-    await rootCollections.activities
-      .where('officeId', '==', officeId)
-      .where('status', '==', 'CONFIRMED')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
-      .get()
-  ).docs.filter(doc => {
-    const {template} = doc.data();
-
-    return template !== 'admin' && template !== 'subscription';
-  });
-
-  if (newRole) {
-    return newRole.id;
-  }
-
-  // query checkIn subscription doc
-  // use that activityId as the role
-  const {
-    docs: [checkInSubscription],
-  } = await rootCollections.activities
-    .where('template', '==', 'subscription')
-    .where('attachment.Template.value', '==', 'check-in')
-    .where('officeId', '==', officeId)
-    .where('attachment.Phone Number.value', '==', phoneNumber)
-    .limit(1)
-    .get();
-
-  return checkInSubscription ? checkInSubscription.id : null;
-};
-
-const getCycle = ({firstDayOfMonthlyCycle, month, year}) => {
+const getCycle = ({ firstDayOfMonthlyCycle, month, year }) => {
   // fdmc =>first day of monthly cycle
   // if fdmc = 1 => start = 1; end = month end.
   // if fdmc !== 1 => start = fdmc; end = (fdmc + 1) in next month
@@ -128,39 +92,26 @@ const getPreviousMonthAttendance = async ({
   return attendanceDoc ? attendanceDoc.get('attendance') || {} : {};
 };
 
-const attendanceHandler = async ({doc, officeId}) => {
+const attendanceHandler = async ({ doc, officeId }) => {
+  console.log('doc', doc.ref.path);
+
   const batch = db.batch();
   const {
-    phoneNumber,
-    roleDoc,
     month,
     year,
     attendance: attendanceInCurrentMonth,
+    uid: beneficiaryId,
+    phoneNumber,
   } = doc.data();
   const momentCurrMonth = momentTz()
     .month(month)
     .year(year);
   const momentPrevMonth = momentCurrMonth.clone().subtract(1, 'months');
-  const [beneficiaryId, officeDoc] = await Promise.all([
-    getBeneficiaryId({
-      phoneNumber,
-      /**
-       * There will be docs where roleDoc is `null`/`undefined`
-       */
-      roleDoc,
-      /**
-       * Some old docs might not have `officeId`.
-       * Don't wanna take the risk of crashes.
-       */
-      officeId,
-    }),
-    rootCollections.offices.doc(officeId).get(),
-  ]);
-
+  const officeDoc = await rootCollections.offices.doc(officeId).get();
   const firstDayOfMonthlyCycle =
     officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1;
 
-  const {cycleStart, cycleEnd} = getCycle({
+  const { cycleStart, cycleEnd } = getCycle({
     firstDayOfMonthlyCycle,
     month,
     year,
@@ -172,7 +123,11 @@ const attendanceHandler = async ({doc, officeId}) => {
     .collection(subcollectionNames.VOUCHERS)
     .where('cycleStart', '==', cycleStart)
     .where('cycleEnd', '==', cycleEnd)
-    .where('beneficiaryId', '==', beneficiaryId)
+    .where(
+      'beneficiaryId',
+      '==',
+      beneficiaryId || (await getAuth(phoneNumber)).uid,
+    )
     .where('type', '==', addendumTypes.ATTENDANCE)
     .where('batchId', '==', null)
     .limit(1)
@@ -205,12 +160,12 @@ const attendanceHandler = async ({doc, officeId}) => {
 
   const attendanceCount =
     firstRange.reduce((prevSum, date) => {
-      const {attendance = 0} = attendanceInPreviousMonth[date] || {};
+      const { attendance = 0 } = attendanceInPreviousMonth[date] || {};
 
       return prevSum + attendance;
     }, 0) +
     secondRange.reduce((prevSum, date) => {
-      const {attendance = 0} = attendanceInCurrentMonth[date] || {};
+      const { attendance = 0 } = attendanceInCurrentMonth[date] || {};
 
       return prevSum + attendance;
     }, 0);
@@ -219,6 +174,8 @@ const attendanceHandler = async ({doc, officeId}) => {
     ? firstVoucherDoc.ref
     : officeDoc.ref.collection(subcollectionNames.VOUCHERS).doc();
   const data = firstVoucherDoc ? firstVoucherDoc.data() : {};
+
+  console.log('attendance voucher', ref.path);
 
   batch.set(
     ref,
@@ -232,18 +189,28 @@ const attendanceHandler = async ({doc, officeId}) => {
       createdAt: data.createdAt || Date.now(),
       updatedAt: Date.now(),
     }),
-    {
-      merge: true,
-    },
+    { merge: true },
   );
 
   return batch.commit();
 };
 
-module.exports = async ({after: doc}, {params: {officeId}}) => {
+module.exports = async ({ after: doc }, { params: { officeId } }) => {
+  // NOTE: debugging only
+  if (!doc || !doc.data()) {
+    return;
+  }
+
   try {
-    return attendanceHandler({doc, officeId});
+    return attendanceHandler({
+      doc,
+      officeId,
+    });
   } catch (error) {
-    console.error(error);
+    console.error({
+      error,
+      officeId,
+      path: doc.ref.path,
+    });
   }
 };

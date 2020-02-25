@@ -23,9 +23,13 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../../admin/admin');
-const {sendSMS} = require('../../admin/utils');
-const {reportNames, httpsActions} = require('../../admin/constants');
+const { db, rootCollections } = require('../../admin/admin');
+const { sendSMS } = require('../../admin/utils');
+const {
+  reportNames,
+  httpsActions,
+  subcollectionNames,
+} = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const env = require('../../admin/env');
 
@@ -44,14 +48,15 @@ const manageOldCheckins = async change => {
   }
 
   const batch = db.batch();
-  const docs = await change.after.ref
-    .collection('Activities')
-    .where('template', '==', 'check-in')
-    .where('timestamp', '<', oldFromValue)
-    .limit(500)
-    .get();
 
-  docs.forEach(doc => batch.delete(doc.ref));
+  (
+    await change.after.ref
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'check-in')
+      .where('timestamp', '<', oldFromValue)
+      .limit(500)
+      .get()
+  ).forEach(doc => batch.delete(doc.ref));
 
   return batch.commit();
 };
@@ -66,119 +71,155 @@ const manageAddendum = async change => {
    * value.
    */
   if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
-    return Promise.resolve();
+    return;
   }
-
-  const docs = await rootCollections.updates
-    .doc(change.after.get('uid'))
-    .collection('Addendum')
-    .where('timestamp', '<', oldFromValue)
-    .orderBy('timestamp')
-    .limit(500)
-    .get();
 
   const batch = db.batch();
 
-  docs.forEach(doc => {
-    batch.delete(doc.ref);
-  });
+  (
+    await rootCollections.updates
+      .doc(change.after.get('uid'))
+      .collection(subcollectionNames.ADDENDUM)
+      .where('timestamp', '<', oldFromValue)
+      .orderBy('timestamp')
+      .limit(500)
+      .get()
+  ).forEach(doc => batch.delete(doc.ref));
 
   return batch.commit();
 };
 
-const handleSignUpAndInstall = options => {
-  const promises = [];
+const getPotentialSameDevices = async ({ phoneNumber, uid, offices }) => {
+  const result = {};
+  const { latestDeviceId = null } =
+    (await rootCollections.updates.doc(uid).get()).data() || {};
 
-  if (!options.hasSignedUp && !options.hasInstalled) {
-    return Promise.resolve();
+  if (!latestDeviceId) {
+    return {};
   }
 
-  options.currentOfficesList.forEach(office => {
-    const promise = rootCollections.offices
-      .where('office', '==', office)
-      .limit(1)
-      .get();
+  const rolePromises = [];
 
-    promises.push(promise);
+  (
+    await rootCollections.updates
+      .where('deviceIdsArray', 'array-contains', latestDeviceId)
+      .get()
+  ).forEach(updatesDoc => {
+    // check-in template document in subscription has the role
+    offices.forEach(office => {
+      rolePromises.push(
+        rootCollections.profiles
+          .doc(updatesDoc.get('phoneNumber'))
+          .collection(subcollectionNames.SUBSCRIPTIONS)
+          .where('template', '==', 'check-in')
+          .where('office', '==', office)
+          .limit(1)
+          .get(),
+      );
+    });
   });
 
-  const momentToday = momentTz().toObject();
+  (await Promise.all(rolePromises)).forEach(({ docs: [doc] }) => {
+    console.log('rolePromises', doc);
 
-  return rootCollections.inits
+    if (!doc) {
+      return;
+    }
+
+    const { roleDoc = null, office } = doc.data();
+
+    const phoneNumberInRole =
+      roleDoc &&
+      roleDoc.attachment &&
+      roleDoc.attachment['Phone Number'] &&
+      roleDoc.attachment['Phone Number'].value;
+
+    if (!phoneNumberInRole || phoneNumberInRole === phoneNumber) {
+      return;
+    }
+
+    result[office] = result[office] || [];
+    result[office].push(phoneNumberInRole);
+  });
+
+  return result;
+};
+
+const handleSignUpAndInstall = async options => {
+  const batch = db.batch();
+
+  if (!options.hasSignedUp && !options.hasInstalled) {
+    return;
+  }
+
+  const potentialSameDevices = await getPotentialSameDevices({
+    phoneNumber: options.change.after.id,
+    offices: options.currentOfficesList,
+    uid: options.change.after.get('uid'),
+  });
+
+  const { date, months: month, years: year } = momentTz().toObject();
+  const {
+    docs: [initDoc],
+  } = await rootCollections.inits
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
     .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-    .where('date', '==', momentToday.date)
-    .where('month', '==', momentToday.months)
-    .where('year', '==', momentToday.years)
     .limit(1)
-    .get()
-    .then(snapShot => {
-      const docRef = (() => {
-        if (snapShot.empty) {
-          return rootCollections.inits.doc();
-        }
+    .get();
+  const initRef = initDoc ? initDoc.ref : rootCollections.inits.doc();
+  const data = initDoc ? initDoc.data() : {};
+  const { installsToday = 0 } = data;
 
-        return snapShot.docs[0].ref;
-      })();
+  batch.set(
+    initRef,
+    Object.assign({}, data, {
+      date,
+      month,
+      year,
+      installsToday: installsToday + 1,
+      report: reportNames.DAILY_STATUS_REPORT,
+    }),
+    { merge: true },
+  );
 
-      const installsToday = (() => {
-        if (snapShot.empty) {
-          return 1;
-        }
+  (
+    await Promise.all(
+      options.currentOfficesList.map(office =>
+        rootCollections.offices
+          .where('attachment.Name.value', '==', office)
+          .limit(1)
+          .get(),
+      ),
+    )
+  ).forEach(({ docs: [doc] }) => {
+    const officeName = doc.get('office');
+    const data = {
+      date,
+      month,
+      year,
+      timestamp: Date.now(),
+      user: options.phoneNumber,
+      activityData: {
+        office: officeName,
+        officeId: options.change.after.get('employeeOf')[officeName],
+      },
+      potentialSameDevices: potentialSameDevices[officeName] || null,
+    };
 
-        /**
-         * Doc might be created by some other event, and
-         * thus may not have the field `installsToday`.
-         */
-        return snapShot.docs[0].get('installsToday') || 1;
-      })();
+    if (options.hasInstalled) {
+      data.action = httpsActions.install;
+    }
 
-      options.batch.set(
-        docRef,
-        {
-          installsToday,
-          report: reportNames.DAILY_STATUS_REPORT,
-          date: momentToday.date,
-          month: momentToday.months,
-          year: momentToday.years,
-        },
-        {
-          merge: true,
-        },
-      );
+    if (options.hasSignedUp) {
+      data.action = httpsActions.signup;
+    }
 
-      return Promise.all(promises);
-    })
-    .then(snapShots => {
-      snapShots.forEach(snapShot => {
-        const doc = snapShot.docs[0];
-        const officeName = doc.get('office');
+    batch.set(doc.ref.collection(subcollectionNames.ADDENDUM).doc(), data);
+  });
 
-        const data = {
-          date: momentToday.date,
-          month: momentToday.months,
-          year: momentToday.years,
-          timestamp: Date.now(),
-          activityData: {
-            officeId: options.change.after.get('employeeOf')[officeName],
-            office: officeName,
-          },
-          user: options.phoneNumber,
-        };
-
-        if (options.hasInstalled) {
-          data.action = httpsActions.install;
-        }
-
-        if (options.hasSignedUp) {
-          data.action = httpsActions.signup;
-        }
-
-        options.batch.set(doc.ref.collection('Addendum').doc(), data);
-      });
-
-      return options.batch.commit();
-    })
-    .catch(console.error);
+  return batch.commit();
 };
 
 const handleCancelledSubscriptions = async change => {
@@ -186,11 +227,11 @@ const handleCancelledSubscriptions = async change => {
   const newFromValue = change.after.get('lastQueryFrom');
 
   if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
-    return Promise.resolve();
+    return;
   }
 
   const profileSubscriptions = await change.after.ref
-    .collection('Subscriptions')
+    .collection(subcollectionNames.SUBSCRIPTIONS)
     .where('timestamp', '<', oldFromValue)
     .get();
 
@@ -218,32 +259,32 @@ const handleCancelledSubscriptions = async change => {
  * @returns {Promise<Batch>} Firestore `Batch` object.
  */
 module.exports = async change => {
-  const {before, after} = change;
+  const { before, after } = change;
 
   /** Only for debugging */
   if (!after.data()) {
-    return Promise.resolve();
+    return;
   }
 
-  const batch = db.batch();
   const profileCreated = Boolean(
     !before.data() && after.data() && after.get('uid'),
   );
-  const phoneNumber = after.id;
+  const { id: phoneNumber } = after;
+  const office = change.after.get('smsContext.office');
   const oldOfficesList = Object.keys(before.get('employeeOf') || {});
   const currentOfficesList = Object.keys(after.get('employeeOf') || {});
-  const newOffice = currentOfficesList.filter(
+  const [newOffice] = currentOfficesList.filter(
     officeName => !oldOfficesList.includes(officeName),
-  )[0];
-  const removedOffice = oldOfficesList.filter(
+  );
+  const [removedOffice] = oldOfficesList.filter(
     officeName => !currentOfficesList.includes(officeName),
-  )[0];
+  );
+
   /**
    * The uid was `undefined` or `null` in the old state, but is available
    * after document `onWrite` event.
    */
   const hasSignedUp = Boolean(!before.get('uid') && after.get('uid'));
-  // const authDeleted = Boolean(before.get('uid') && !after.get('uid'));
   /** This can be `undefined` which will returned as `false`. */
   const hasBeenRemoved = Boolean(removedOffice);
   const hasBeenAdded = Boolean(newOffice);
@@ -272,8 +313,6 @@ module.exports = async change => {
     hasInstalled,
     hasBeenRemoved,
     hasBeenAdded,
-    batch,
-    today: new Date(),
   };
 
   /**
@@ -297,8 +336,9 @@ module.exports = async change => {
     await manageOldCheckins(change);
     await handleCancelledSubscriptions(change);
 
-    const office = change.after.get('smsContext.office');
-    if (!toSendSMS || !office) return;
+    if (!toSendSMS || !office) {
+      return;
+    }
 
     const smsText =
       `${office.substring(0, 20)} will use` +

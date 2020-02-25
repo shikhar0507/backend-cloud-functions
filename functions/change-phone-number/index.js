@@ -23,311 +23,278 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../admin/admin');
+const { db, rootCollections } = require('../admin/admin');
 const {
-  getAuth,
   handleError,
   sendResponse,
   isE164PhoneNumber,
+  getAuth,
 } = require('../admin/utils');
-const {httpsActions, subcollectionNames} = require('../admin/constants');
-const {code} = require('../admin/responses');
+const { httpsActions, subcollectionNames } = require('../admin/constants');
+const { code } = require('../admin/responses');
 const admin = require('firebase-admin');
+const momentTz = require('moment-timezone');
 
-const validator = (body, oldPhoneNumber) => {
+const validator = body => {
   if (!body.hasOwnProperty('newPhoneNumber')) {
-    return `Field 'newPhoneNumber' is missing` + ` from the request body`;
+    return `Missing the field 'newPhoneNumber' from the request body.`;
   }
 
   if (!isE164PhoneNumber(body.newPhoneNumber)) {
-    return (
-      `Invalid phone number:` + ` '${body.newPhoneNumber}' in the request body`
-    );
-  }
-
-  if (body.newPhoneNumber === oldPhoneNumber) {
-    return `Old Phone Number cannot be the same as` + ` the New Phone Number`;
+    return `Invalid phone number: '${body.newPhoneNumber}'`;
   }
 
   return null;
 };
 
-const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
-  const updateActivities = async (query, resolve, reject) => {
-    const snap = await query.get();
+const getCreator = creator =>
+  typeof creator === 'string'
+    ? { phoneNumber: creator, displayName: '', photoURL: '' }
+    : creator;
 
-    console.log('docs', snap.size);
+const getUpdatedCreator = ({ creator, newPhoneNumber }) =>
+  Object.assign({}, creator, { phoneNumber: newPhoneNumber });
 
-    if (snap.empty) {
-      return resolve();
+const getUpdatedAttachment = ({ attachment, oldPhoneNumber, newPhoneNumber }) =>
+  Object.keys(attachment).reduce((prev, field) => {
+    const { value, type } = attachment[field];
+
+    prev[field] = { value, type };
+
+    if (value === oldPhoneNumber) {
+      prev[field].value = newPhoneNumber;
     }
 
-    const batch = db.batch();
+    return prev;
+  }, {});
 
-    snap.forEach(doc => {
-      const activityOld = doc.data();
-      // replace old phone number in activities
-      // creator, creator.phoneNumber
-      if (doc.get('template') === 'check-in') {
-        batch.delete(doc.ref);
+const singleActivityUpdateObject = ({
+  activity,
+  oldPhoneNumber,
+  newPhoneNumber,
+}) => {
+  const { id: activityId } = activity;
+  const {
+    template,
+    attachment,
+    creator,
+    officeId,
+    timezone = 'Asia/Kolkata',
+  } = activity.data();
+  const { date, months: month, years: year } = momentTz()
+    .tz(timezone)
+    .toObject();
+  const isEmployeeActivityForUser =
+    template === 'employee' &&
+    attachment['Phone Number'] &&
+    attachment['Phone Number'].value === oldPhoneNumber;
 
-        return;
-      }
+  if (template === 'check-in') {
+    return {};
+  }
 
-      const data = Object.assign({}, doc.data(), {
-        addendumDocRef: null,
-        timestamp: Date.now(),
-      });
+  const activityUpdate = Object.assign({}, activity.data(), {
+    addendumDocRef: null,
+    timestamp: Date.now(),
+    creator: getUpdatedCreator({
+      creator: getCreator(creator),
+      newPhoneNumber,
+    }),
+    attachment: getUpdatedAttachment({
+      attachment,
+      oldPhoneNumber,
+      newPhoneNumber,
+    }),
+  });
 
-      const attachment = doc.get('attachment');
+  /**
+   * These fields don't need to go to the `Activities/{activityId}` documents
+   * So, deleting them. If required, the activityOnWrite instance triggered
+   * for the appropriate activity will put the necessary values according
+   * to the latest assignee list and stuff.
+   */
+  delete activityUpdate.customerObject;
+  delete activityUpdate.canEdit;
+  delete activityUpdate.activityId;
+  delete activityUpdate.assignees;
 
-      console.log('Activity:', doc.ref.path);
+  if (!isEmployeeActivityForUser) {
+    return { activityUpdate };
+  }
 
-      const creator = (() => {
-        if (typeof doc.get('creator') === 'string') {
-          return {
-            displayName: '',
-            photoURL: '',
-            phoneNumber: doc.get('creator'),
-          };
-        }
-
-        return doc.get('creator');
-      })();
-
-      if (creator.phoneNumber === oldPhoneNumber) {
-        data.creator = Object.assign({}, creator, {
-          phoneNumber: newPhoneNumber,
-        });
-      }
-
-      const fields = Object.keys(attachment);
-
-      fields.forEach(field => {
-        const {value, type} = attachment[field];
-
-        if (type !== 'phoneNumber') {
-          return;
-        }
-
-        if (value === oldPhoneNumber) {
-          data.attachment[field].value = newPhoneNumber;
-        }
-      });
-
-      const ref = rootCollections.activities.doc(doc.id);
-
-      if (
-        data.template === 'employee' &&
-        data.attachment['Phone Number'] &&
-        data.attachment['Phone Number'].value === oldPhoneNumber
-      ) {
-        const {officeId} = data;
-
-        const ref = rootCollections.offices
-          .doc(officeId)
-          .collection(subcollectionNames.ADDENDUM)
-          .doc();
-
-        data.addendumDocRef = ref;
-
-        batch.set(ref, {
-          activityOld,
-          oldPhoneNumber,
-          newPhoneNumber,
-          activityData: data,
-          timestamp: Date.now(),
-          action: httpsActions.update,
-          user: newPhoneNumber,
-          activityId: data.activityId,
-          userDeviceTimestamp: Date.now(),
-          template: data.template,
-          isSupportRequest: false,
-          isAdminRequest: false,
-          geopointAccuracy: null,
-          provider: null,
-          userDisplayName: '',
-          location: null,
-        });
-      }
-
-      delete data.customerObject;
-      delete data.canEdit;
-      delete data.activityId;
-      delete data.assignees;
-
-      batch.set(ref, Object.assign({}, data), {
-        merge: true,
-      });
-
-      batch.delete(
-        ref.collection(subcollectionNames.ASSIGNEES).doc(oldPhoneNumber),
-      );
-
-      batch.set(
-        ref.collection(subcollectionNames.ASSIGNEES).doc(newPhoneNumber),
-        {
-          addToInclude: data.template === 'subscription',
-        },
-      );
-    });
-
-    await batch.commit();
-
-    const lastDoc = snap.docs[snap.size - 1];
-
-    if (!lastDoc) {
-      return resolve();
-    }
-
-    process.nextTick(() => {
-      const newQuery = query.startAfter(lastDoc.id);
-
-      return updateActivities(newQuery, resolve, reject);
-    });
+  const addendumDocData = {
+    date,
+    month,
+    year,
+    template,
+    activityId,
+    oldPhoneNumber,
+    newPhoneNumber,
+    user: newPhoneNumber,
+    activityData: activityUpdate,
+    timestamp: Date.now(),
+    action: httpsActions.update,
+    activityOld: activity.data(),
+    userDeviceTimestamp: Date.now(),
+    isSupportRequest: false,
+    isAdminRequest: false,
+    geopointAccuracy: null,
+    provider: null,
+    userDisplayName: '',
+    location: null,
   };
 
-  const promiseExecutor = (resolve, reject) => {
-    const query = rootCollections.profiles
+  activityUpdate.addendumDocRef = rootCollections.offices
+    .doc(officeId)
+    .collection(subcollectionNames.ADDENDUM)
+    .doc();
+
+  return { activityUpdate, addendumDocData };
+};
+
+const migrateUserData = async ({
+  prevQuery,
+  oldPhoneNumber,
+  newPhoneNumber,
+  batches,
+  uniqueOffices = new Set(),
+}) => {
+  const batch = db.batch();
+  const MAX_ACTIVITIES_AT_ONCE = 100;
+  const query =
+    prevQuery ||
+    rootCollections.profiles
       .doc(oldPhoneNumber)
       .collection(subcollectionNames.ACTIVITIES)
       .orderBy('__name__')
-      .limit(100);
+      .limit(MAX_ACTIVITIES_AT_ONCE);
 
-    return updateActivities(query, resolve, reject);
-  };
+  const { empty, size, docs } = await query.get();
 
-  return new Promise(promiseExecutor);
+  console.log({ size });
+
+  if (empty) {
+    return batches;
+  }
+
+  docs.forEach(activity => {
+    // do stuff;
+    const { id: activityId } = activity;
+    const { office } = activity.data();
+    const activityRef = rootCollections.activities.doc(activityId);
+    const { activityUpdate, addendumDocData } = singleActivityUpdateObject({
+      activity,
+      newPhoneNumber,
+      oldPhoneNumber,
+    });
+
+    uniqueOffices.add(office);
+
+    if (!activityUpdate) {
+      batch.delete(activityRef);
+
+      return;
+    }
+
+    // unassign old number
+    batch.delete(
+      activityRef.collection(subcollectionNames.ASSIGNEES).doc(oldPhoneNumber),
+    );
+
+    // assign new number
+    batch.set(
+      activityRef.collection(subcollectionNames.ASSIGNEES).doc(newPhoneNumber),
+      {},
+    );
+
+    batch.set(activityRef, activityUpdate, { merge: true });
+
+    if (addendumDocData) {
+      batch.set(activityUpdate.addendumDocRef, addendumDocData);
+    }
+  });
+
+  const lastDoc = docs[size - 1];
+
+  batches.push(batch);
+
+  return migrateUserData({
+    batches,
+    oldPhoneNumber,
+    newPhoneNumber,
+    uniqueOffices,
+    prevQuery: query.startAfter(lastDoc),
+  });
 };
 
-const populateWebapp = async (oldPhoneNumber, newPhoneNumber) => {
-  const promiseCallback = (resolve, reject) => {
-    const moveWebapp = async (query, resolve, reject) => {
-      const snap = await query.get();
-      const batch = db.batch();
+const updateProfile = async ({ newPhoneNumber, oldPhoneNumbersUid: uid }) => {
+  const newPhoneNumberUserRecord = await getAuth(newPhoneNumber);
+  console.log('newNumberAuthFound', !!newPhoneNumberUserRecord.uid);
 
-      snap.forEach(doc => {
-        const ref = rootCollections.profiles
-          .doc(newPhoneNumber)
-          .collection(subcollectionNames.WEBAPP)
-          .doc(doc.id);
-        const data = doc.data();
+  if (uid) {
+    await rootCollections.updates
+      .doc(uid)
+      .set({ phoneNumber: newPhoneNumber }, { merge: true });
+  }
 
-        if (data.phoneNumber === oldPhoneNumber) {
-          data.phoneNumber = newPhoneNumber;
-        }
+  if (newPhoneNumberUserRecord.uid) {
+    return;
+  }
 
-        batch.set(ref, data, {
-          merge: true,
-        });
-      });
-
-      await batch.commit();
-
-      const lastDoc = snap.docs[snap.size - 1];
-
-      if (!lastDoc) {
-        return resolve();
-      }
-
-      return process.nextTick(() => {
-        const newQuery = query.startAfter(lastDoc.id);
-
-        return moveWebapp(newQuery, resolve, reject);
-      });
-    };
-
-    const query = rootCollections.profiles
-      .doc(oldPhoneNumber)
-      .collection(subcollectionNames.WEBAPP)
-      .orderBy('__name__')
-      .limit(498);
-
-    return moveWebapp(query, resolve, reject);
-  };
-
-  return new Promise(promiseCallback);
+  return Promise.all([
+    admin.auth().updateUser(uid, { phoneNumber: newPhoneNumber }),
+    rootCollections.profiles.doc(newPhoneNumber).set({ uid }, { merge: true }),
+  ]);
 };
 
 module.exports = async conn => {
-  const v = validator(conn.req.body, conn.requester.phoneNumber);
+  const v = validator(conn.req.body);
 
   if (v) {
     return sendResponse(conn, code.badRequest, v);
   }
 
+  /**
+   * Old phone number is the current phone number of the user.
+   */
+  const { uid, phoneNumber: oldPhoneNumber } = conn.requester;
+  const { newPhoneNumber } = conn.req.body;
+
+  console.log({ uid, oldPhoneNumber, newPhoneNumber });
+
   try {
-    const newAuth = await getAuth(conn.req.body.newPhoneNumber);
-
-    if (newAuth.uid) {
-      return sendResponse(
-        conn,
-        code.badRequest,
-        `The phone number: '${conn.req.body.newPhoneNumber}'` +
-          ` is already in use`,
-      );
-    }
-
-    /**
-     * Disabling user until all the activity
-     * onWrite instances have triggered.
-     */
-    await admin.auth().updateUser(conn.requester.uid, {
-      disabled: true,
-    });
-
-    conn.req.body.oldPhoneNumber =
-      conn.req.body.oldPhoneNumber || conn.requester.phoneNumber;
-
-    await populateActivities(
-      conn.req.body.oldPhoneNumber,
-      conn.req.body.newPhoneNumber,
-    );
-
-    await populateWebapp(
-      conn.req.body.oldPhoneNumber,
-      conn.req.body.newPhoneNumber,
-    );
-
-    const batch = db.batch();
-
-    const profileData =
-      (
-        await rootCollections.profiles.doc(conn.req.body.oldPhoneNumber).get()
-      ).data() || {};
-
-    batch.set(
-      rootCollections.profiles.doc(conn.req.body.newPhoneNumber),
-      Object.assign({}, profileData, {
-        uid: conn.requester.uid,
-      }),
-      {
-        merge: true,
-      },
-    );
-
-    batch.set(
-      rootCollections.updates.doc(conn.requester.uid),
-      {
-        phoneNumber: conn.req.body.newPhoneNumber,
-      },
-      {
-        merge: true,
-      },
-    );
-
-    return batch.commit();
-  } catch (error) {
-    return handleError(conn, error);
-  } finally {
     await Promise.all([
-      admin.auth().updateUser(conn.requester.uid, {
-        disabled: false,
-        phoneNumber: conn.req.body.newPhoneNumber,
+      ...(
+        await migrateUserData({
+          prevQuery: null,
+          oldPhoneNumber,
+          newPhoneNumber,
+          batches: [],
+          uniqueOffices: new Set(),
+        })
+      ).map(batch => batch.commit()),
+      updateProfile({
+        newPhoneNumber,
+        oldPhoneNumber,
+        oldPhoneNumbersUid: uid,
       }),
-      admin.auth().revokeRefreshTokens(conn.requester.uid),
+      admin.auth().revokeRefreshTokens(uid),
+      // Clearing registrationToken because the new phone number might not receive
+      // notifications otherwise from from firebase.
+      rootCollections.updates
+        .doc(uid)
+        .set(
+          { registrationToken: admin.firestore.FieldValue.delete() },
+          { merge: true },
+        ),
     ]);
 
-    sendResponse(conn, code.accepted, 'Phone Number change is in progress.');
+    return sendResponse(
+      conn,
+      code.accepted,
+      'Phone Number change is in progress.',
+    );
+  } catch (error) {
+    return handleError(conn, error);
   }
 };

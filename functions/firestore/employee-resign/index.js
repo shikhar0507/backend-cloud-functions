@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {rootCollections, db} = require('../../admin/admin');
+const { rootCollections, db } = require('../../admin/admin');
 const {
   sendResponse,
   isE164PhoneNumber,
@@ -31,7 +31,7 @@ const {
   isNonEmptyString,
   hasAdminClaims,
 } = require('../../admin/utils');
-const {code} = require('../../admin/responses');
+const { code } = require('../../admin/responses');
 
 const validator = body => {
   if (!body.hasOwnProperty('office')) {
@@ -68,82 +68,80 @@ const validator = body => {
   };
 };
 
-const cancelEmployee = (conn, officeDoc) => {
-  return Promise.all([
-    officeDoc.ref
-      .collection('Activities')
-      .where('template', '==', 'employee')
-      .where('office', '==', conn.req.body.office)
-      .where('attachment.Phone Number.value', '==', conn.req.body.phoneNumber)
-      .limit(1)
-      .get(),
-    rootCollections.updates
-      .where('phoneNumber', '==', conn.req.body.phoneNumber)
-      .limit(1)
-      .get(),
-  ])
-    .then(result => {
-      const [employeeActivityQuery, updatesDocQuery] = result;
+const cancelEmployee = async (conn, officeDoc) => {
+  try {
+    const [employeeActivityQuery, updatesDocQuery] = await Promise.all([
+      rootCollections.activities
+        .where('officeId', '==', officeDoc.id)
+        .where('template', '==', 'employee')
+        .where('attachment.Phone Number.value', '==', conn.req.body.phoneNumber)
+        .limit(1)
+        .get(),
+      rootCollections.updates
+        .where('phoneNumber', '==', conn.req.body.phoneNumber)
+        .limit(1)
+        .get(),
+    ]);
 
-      if (employeeActivityQuery.empty) {
-        sendResponse(
-          conn,
-          code.badRequest,
-          `No employee found with the phone number: ${conn.req.body.phoneNumber}`,
-        );
-      }
+    if (employeeActivityQuery.empty) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        `No employee found with the phone number: ${conn.req.body.phoneNumber}`,
+      );
+    }
 
-      const activityId = employeeActivityQuery.docs[0].id;
-      const oldStatus = employeeActivityQuery.docs[0].get('status');
+    const { id: activityId } = employeeActivityQuery.docs[0];
+    const oldStatus = employeeActivityQuery.docs[0].get('status');
+    const batch = db.batch();
 
-      if (oldStatus === 'CANCELLED') {
-        return sendResponse(
-          conn,
-          code.badRequest,
-          `Employee: ${conn.req.body.phoneNumber} is already cancelled`,
-        );
-      }
+    if (oldStatus === 'CANCELLED') {
+      return sendResponse(
+        conn,
+        code.badRequest,
+        `Employee: ${conn.req.body.phoneNumber} is already cancelled`,
+      );
+    }
 
-      const batch = db.batch();
+    batch.set(
+      rootCollections.activities.doc(activityId),
+      {
+        addendumDocRef: null,
+        timestamp: Date.now(),
+        status: 'CANCELLED',
+      },
+      {
+        merge: true,
+      },
+    );
+
+    if (!updatesDocQuery.empty) {
+      const doc = updatesDocQuery.docs[0];
+      const removeFromOffice = doc.get('removeFromOffice') || [];
+
+      removeFromOffice.push(conn.req.body.office);
 
       batch.set(
-        rootCollections.activities.doc(activityId),
+        doc.ref,
         {
-          addendumDocRef: null,
-          timestamp: Date.now(),
-          status: 'CANCELLED',
+          removeFromOffice: Array.from(new Set(removeFromOffice)),
         },
         {
           merge: true,
         },
       );
+    }
 
-      if (!updatesDocQuery.empty) {
-        const doc = updatesDocQuery.docs[0];
-        const removeFromOffice = doc.get('removeFromOffice') || [];
-        removeFromOffice.push(conn.req.body.office);
+    await batch.commit();
 
-        batch.set(
-          doc.ref,
-          {
-            removeFromOffice: Array.from(new Set(removeFromOffice)),
-          },
-          {
-            merge: true,
-          },
-        );
-      }
-
-      return Promise.all([
-        batch.commit(),
-        sendResponse(
-          conn,
-          code.ok,
-          `${conn.req.body.phoneNumber} has been CANCELLED`,
-        ),
-      ]);
-    })
-    .catch(error => handleError(conn, error));
+    return sendResponse(
+      conn,
+      code.ok,
+      `${conn.req.body.phoneNumber} has been CANCELLED`,
+    );
+  } catch (error) {
+    return handleError(conn, error);
+  }
 };
 
 module.exports = conn => {

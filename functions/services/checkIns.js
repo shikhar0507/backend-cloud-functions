@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {db, rootCollections, getGeopointObject} = require('../admin/admin');
+const { db, rootCollections, getGeopointObject } = require('../admin/admin');
 const {
   sendResponse,
   isNonEmptyString,
@@ -33,10 +33,9 @@ const {
   isE164PhoneNumber,
 } = require('../admin/utils');
 const momentTz = require('moment-timezone');
-
-const {code} = require('../admin/responses');
-const {Creator, Attachment} = require('../admin/protos');
-const {httpsActions, subcollectionNames} = require('../admin/constants');
+const { code } = require('../admin/responses');
+const { Creator, Attachment } = require('../admin/protos');
+const { httpsActions, subcollectionNames } = require('../admin/constants');
 
 const validator = req => {
   if (req.method !== 'POST') {
@@ -63,7 +62,7 @@ const validator = req => {
       return false;
     }
 
-    const {phoneNumber, displayName, email} = obj;
+    const { phoneNumber, displayName, email } = obj;
 
     if (!isE164PhoneNumber(phoneNumber)) {
       return false;
@@ -97,41 +96,34 @@ const validator = req => {
   return null;
 };
 
-const checkIsAdmin = (requester, office) => {
-  return (
-    requester.customClaims &&
-    Array.isArray(requester.customClaims.admin) &&
-    requester.customClaims.admin.includes(office)
-  );
-};
+const checkIsAdmin = (requester, office) =>
+  requester.customClaims &&
+  Array.isArray(requester.customClaims.admin) &&
+  requester.customClaims.admin.includes(office);
 
 const getSubscriptionConflicts = async (phoneNumbers, officeId) => {
-  const promises = phoneNumbers.map(obj => {
-    return rootCollections.activities
-      .where('officeId', '==', officeId)
-      .where('template', '==', 'subscription')
-      .where('attachment.Template.value', '==', 'check-in')
-      .where('attachment.Phone Number.value', '==', obj.phoneNumber)
-      .limit(1)
-      .get();
-  });
-
-  const snapShots = await Promise.all(promises);
   const allSubscriptionActivities = new Map();
+  const snapShots = await Promise.all(
+    phoneNumbers.map(obj =>
+      rootCollections.activities
+        .where('officeId', '==', officeId)
+        .where('template', '==', 'subscription')
+        .where('attachment.Template.value', '==', 'check-in')
+        .where('attachment.Phone Number.value', '==', obj.phoneNumber)
+        .limit(1)
+        .get(),
+    ),
+  );
 
-  snapShots.forEach(snap => {
-    const [subscription] = snap.docs;
-
+  snapShots.forEach(({ docs: [subscription] }) => {
     if (!subscription) {
       return;
     }
 
-    const {value} = subscription.get('attachment.Phone Number');
+    const { value } = subscription.get('attachment.Phone Number');
 
     allSubscriptionActivities.get(value, subscription);
   });
-
-  console.log('allSubscriptionActivities', allSubscriptionActivities.size);
 
   return allSubscriptionActivities;
 };
@@ -143,13 +135,20 @@ module.exports = async conn => {
     return sendResponse(conn, code.badRequest, v);
   }
 
-  const {office} = conn.req.body;
+  const { office } = conn.req.body;
 
   if (!checkIsAdmin(conn.requester, office)) {
     return sendResponse(conn, code.forbidden, `You cannot perform this action`);
   }
 
-  const [officeDocQuery, templateDocQuery] = await Promise.all([
+  const [
+    {
+      docs: [officeDoc],
+    },
+    {
+      docs: [templateDoc],
+    },
+  ] = await Promise.all([
     rootCollections.offices
       .where('office', '==', office)
       .limit(1)
@@ -159,9 +158,6 @@ module.exports = async conn => {
       .limit(1)
       .get(),
   ]);
-
-  const [officeDoc] = officeDocQuery.docs;
-  const [templateDoc] = templateDocQuery.docs;
 
   if (!officeDoc) {
     return sendResponse(
@@ -183,19 +179,17 @@ module.exports = async conn => {
   ).toObject();
   const timezone = officeDoc.get('attachment.Timezone.value');
   const templateToSubscribe = 'check-in';
-  const {date, months: month, years: year} = momentTz().toObject();
+  const { date, months: month, years: year } = momentTz().toObject();
   // This is a map
   const allSubscriptionActivities = await getSubscriptionConflicts(
     conn.req.body.phoneNumbers,
     officeDoc.id,
   );
 
-  conn.req.body.phoneNumbers.forEach(object => {
-    const {phoneNumber, displayName} = object;
+  conn.req.body.phoneNumbers.forEach(({ phoneNumber, displayName }) => {
     const oldSubscriptionDoc = allSubscriptionActivities.get(phoneNumber);
 
     if (oldSubscriptionDoc) {
-      console.log('already exists', phoneNumber);
       // subscription activity already exists
       batch.set(
         oldSubscriptionDoc.ref,
@@ -204,9 +198,7 @@ module.exports = async conn => {
           addendumDocRef: null,
           status: 'CONFIRMED',
         },
-        {
-          merge: true,
-        },
+        { merge: true },
       );
 
       return;
@@ -215,15 +207,15 @@ module.exports = async conn => {
     const activityRef = rootCollections.activities.doc();
     const activityData = {
       creator,
-      status: templateDoc.get('statusOnCreate'),
       timezone,
+      office,
+      status: templateDoc.get('statusOnCreate'),
       template: templateDoc.get('name'),
       addendumDocRef: officeDoc.ref
         .collection(subcollectionNames.ADDENDUM)
         .doc(),
       timestamp: Date.now(),
       createTimestamp: Date.now(),
-      office,
       officeId: officeDoc.id,
       attachment: new Attachment(
         {
@@ -237,16 +229,14 @@ module.exports = async conn => {
       canEditRule: templateDoc.get('canEditRule'),
       hidden: templateDoc.get('hidden'),
       schedule: templateDoc.get('schedule').map(name => {
-        return {name, startTime: '', endTime: ''};
+        return { name, startTime: '', endTime: '' };
       }),
-      venue: templateDoc.get('venue').map(venueDescriptor => {
-        return {
-          venueDescriptor,
-          location: '',
-          address: '',
-          geopoint: {latitude: '', longitude: ''},
-        };
-      }),
+      venue: templateDoc.get('venue').map(venueDescriptor => ({
+        venueDescriptor,
+        location: '',
+        address: '',
+        geopoint: { latitude: '', longitude: '' },
+      })),
     };
 
     batch.set(activityRef, activityData);
@@ -254,9 +244,7 @@ module.exports = async conn => {
       date,
       month,
       year,
-      activityData: Object.assign({}, activityData, {
-        addendumDocRef: null,
-      }),
+      activityData: Object.assign({}, activityData, { addendumDocRef: null }),
       activityId: activityRef.id,
       user: conn.requester.phoneNumber,
       isAdminRequest: true,
@@ -280,5 +268,5 @@ module.exports = async conn => {
 
   await batch.commit();
 
-  sendResponse(conn, code.ok, 'Activities created');
+  return sendResponse(conn, code.ok, 'Activities created');
 };

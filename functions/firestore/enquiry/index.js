@@ -23,14 +23,14 @@
 
 'use strict';
 
-const {rootCollections} = require('../../admin/admin');
+const { rootCollections } = require('../../admin/admin');
 const {
   handleError,
   sendResponse,
   isNonEmptyString,
 } = require('../../admin/utils');
-const {code} = require('../../admin/responses');
-const {reportNames} = require('../../admin/constants');
+const { code } = require('../../admin/responses');
+const { reportNames } = require('../../admin/constants');
 
 const validateBody = body => {
   const result = {

@@ -23,10 +23,10 @@
 
 'use strict';
 
-const {isValidRequestBody, checkActivityAndAssignee} = require('./helper');
-const {code} = require('../../admin/responses');
-const {httpsActions} = require('../../admin/constants');
-const {db, rootCollections, getGeopointObject} = require('../../admin/admin');
+const { isValidRequestBody, checkActivityAndAssignee } = require('./helper');
+const { code } = require('../../admin/responses');
+const { httpsActions } = require('../../admin/constants');
+const { db, rootCollections, getGeopointObject } = require('../../admin/admin');
 const {
   getCanEditValue,
   handleError,
@@ -118,13 +118,14 @@ const handleResult = async (conn, docs) => {
   // name is cancelled and another activity with
   // the same template and name exists, then
   // dont allow setting the status to CONFIRMED.
-  const namedActivities = await rootCollections.offices
-    .doc(activityDoc.get('officeId'))
-    .collection('Activities')
+  const namedActivities = await rootCollections.activities
     .where('template', '==', activityDoc.get('template'))
-    .where('attachment.Name.value', '==', attachment.Name.value)
-    .where('isCancelled', '==', false)
-    .limit(2)
+    .where('officeId', '==', activityDoc.get('officeId'))
+    .where(
+      'attachment.Name.value',
+      '==',
+      activityDoc.get('attachment.Name.value'),
+    )
     .get();
 
   if (namedActivities.size > 1) {

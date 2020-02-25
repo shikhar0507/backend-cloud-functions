@@ -33,9 +33,9 @@ const crypto = require('crypto');
 const CLIENT_ID = env.cashFree.autocollect.clientId;
 const CLIENT_SECRET = env.cashFree.autocollect.clientSecret;
 
-const {promisify} = require('util');
-const {rootCollections} = require('../admin/admin');
-const {getISO8601Date} = require('../admin/utils');
+const { promisify } = require('util');
+const { rootCollections } = require('../admin/admin');
+const { getISO8601Date } = require('../admin/utils');
 
 const endpoint = (() => {
   if (env.isProduction) {
@@ -43,6 +43,14 @@ const endpoint = (() => {
   }
 
   return 'https://cac-gamma.cashfree.com';
+})();
+
+const keyPath = (() => {
+  if (env.isProduction) {
+    return path.resolve('./admin', 'payout_prod.pem');
+  }
+
+  return path.resolve('./admin', 'payout_test.pem');
 })();
 
 const encryptWithPublicKey = async keyPath => {
@@ -62,24 +70,20 @@ const encryptWithPublicKey = async keyPath => {
 
 const getAutocollectToken = async () => {
   const uri = url.resolve(endpoint, '/cac/v1/authorize');
-  const keyPath = (() => {
-    if (env.isProduction) {
-      return path.resolve('./admin', 'payout_prod.pem');
-    }
+  console.log('keyPath', keyPath);
+  // console.log()
+  const headers = {
+    'X-Client-Id': CLIENT_ID,
+    'X-Client-Secret': CLIENT_SECRET,
+    'X-CF-Signature': await encryptWithPublicKey(keyPath),
+  };
 
-    return path.resolve('./admin', 'payout_test.pem');
-  })();
-
-  console.log(keyPath);
+  console.log('headers', headers);
 
   return rpn(uri, {
     method: 'POST',
     json: true,
-    headers: {
-      'X-Client-Id': CLIENT_ID,
-      'X-Client-Secret': CLIENT_SECRET,
-      'X-CF-Signature': await encryptWithPublicKey(keyPath),
-    },
+    headers,
   });
 };
 
@@ -97,8 +101,7 @@ const verifyAuthToken = async authToken => {
 
 const getBearerToken = async () => {
   const timerDoc = await rootCollections.timers.doc(getISO8601Date()).get();
-
-  const {cashFree} = timerDoc.data() || {};
+  const { cashFree } = timerDoc.data() || {};
 
   console.log('Timer', timerDoc.ref.path);
 
@@ -134,15 +137,12 @@ const getBearerToken = async () => {
   return `Bearer ${authTokenResponse.data.token}`;
 };
 
-const getHeaders = async () => {
-  return {
-    Authorization: await getBearerToken(),
-  };
-};
+const getHeaders = async () => ({
+  Authorization: await getBearerToken(),
+});
 
-const createVirtualAccount = async options => {
+const createVirtualAccount = async ({ vAccountId, name, phone, email }) => {
   const uri = url.resolve(endpoint, '/cac/v1/createVA');
-  const {vAccountId, name, phone, email} = options;
 
   return rpn(uri, {
     method: 'POST',

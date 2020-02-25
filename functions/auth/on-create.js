@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {db, auth, rootCollections} = require('../admin/admin');
-const {getObjectFromSnap, filterPhoneNumber} = require('../admin/utils');
-const {reportNames, subcollectionNames} = require('../admin/constants');
+const { db, auth, rootCollections } = require('../admin/admin');
+const { getObjectFromSnap, filterPhoneNumber } = require('../admin/utils');
+const { reportNames, subcollectionNames } = require('../admin/constants');
 const moment = require('moment');
 
 /**

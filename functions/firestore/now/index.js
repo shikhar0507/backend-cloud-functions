@@ -23,22 +23,16 @@
 
 'use strict';
 
-const {sendResponse, getISO8601Date, sendJSON} = require('../../admin/utils');
-const {subcollectionNames} = require('../../admin/constants');
-const {db, rootCollections} = require('../../admin/admin');
-const {code} = require('../../admin/responses');
+const {
+  sendResponse,
+  getISO8601Date,
+  sendJSON,
+  maskLastDigits,
+} = require('../../admin/utils');
+const { subcollectionNames } = require('../../admin/constants');
+const { db, rootCollections } = require('../../admin/admin');
+const { code } = require('../../admin/responses');
 const momentTz = require('moment-timezone');
-
-const maskLastDigits = (
-  input,
-  digitsToReplace = 4,
-  charToReplaceWith = 'X',
-) => {
-  return (
-    `${new Array(input.length - digitsToReplace + 1).join(charToReplaceWith)}` +
-    `${input.slice(-digitsToReplace)}`
-  );
-};
 
 const getUsersWithProbablySameDevice = async (
   deviceId,
@@ -61,7 +55,7 @@ const getUsersWithProbablySameDevice = async (
       .select('phoneNumber')
       .get()
   ).docs.reduce((prev, doc) => {
-    const {phoneNumber} = doc.data();
+    const { phoneNumber } = doc.data();
     prev.push(phoneNumber);
 
     return prev;
@@ -87,8 +81,8 @@ const getUsersWithProbablySameDevice = async (
 
   snaps.forEach(snap => {
     snap.forEach(doc => {
-      const {office, template} = doc.data();
-      const {path} = doc.ref;
+      const { office, template } = doc.data();
+      const { path } = doc.ref;
       const phoneNumber = path.split('/')[1];
       const id = `${office}${template}${phoneNumber}`;
 
@@ -96,7 +90,7 @@ const getUsersWithProbablySameDevice = async (
         return;
       }
 
-      result.push({office, phoneNumber});
+      result.push({ office, phoneNumber });
       uniqueCombinations.add(id);
     });
   });
@@ -158,7 +152,7 @@ module.exports = async conn => {
 
   // update only if latestVersion >
   const updateClient = (() => {
-    const {iosLatestVersion, androidLatestVersion} = appVersionDoc.data();
+    const { iosLatestVersion, androidLatestVersion } = appVersionDoc.data();
 
     if (!conn.req.query.hasOwnProperty('os')) {
       return true;

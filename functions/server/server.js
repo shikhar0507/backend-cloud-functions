@@ -23,8 +23,8 @@
 
 'use strict';
 
-const {db, auth, rootCollections} = require('../admin/admin');
-const {code} = require('../admin/responses');
+const { db, auth, rootCollections } = require('../admin/admin');
+const { code } = require('../admin/responses');
 const {
   handleError,
   sendResponse,
@@ -36,7 +36,7 @@ const {
 } = require('../admin/utils');
 const env = require('../admin/env');
 const routes = require('../routes');
-const {Logging} = require('@google-cloud/logging');
+const { Logging } = require('@google-cloud/logging');
 
 const handleResource = conn => {
   const resource = routes(conn.req);
@@ -206,6 +206,7 @@ const getUserAuthFromIdToken = async (conn, decodedIdToken) => {
     photoURL: userRecord.photoURL || '',
     customClaims: userRecord.customClaims || null,
     creationTime: userRecord.metadata.creationTime,
+    isAdminRequest: conn.req.hostname === 'growthfile.com',
     /**
      * Can be used to verify in the activity flow to see if the request
      * is of type support.
@@ -350,14 +351,8 @@ module.exports = async (req, res) => {
     );
   }
 
-  if (env.isProduction && conn.req.query.cashFreeToken === env.cashFreeToken) {
-    await rootCollections.errors.doc().set({
-      report: 'cashfree',
-      body: conn.req.body || {},
-      timestamp: Date.now(),
-    });
-
-    return sendResponse(conn, code.ok);
+  if (conn.req.path === '/webhook/cashfree') {
+    return require('../webhooks/cashfree')(conn);
   }
 
   if (conn.req.path === '/webhook/facebook') {
@@ -372,6 +367,11 @@ module.exports = async (req, res) => {
     return sendResponse(conn, code.ok);
   }
 
+  /**
+   * Requests from cloudflare worker are intercepted at this block.
+   * In the production env, the header should contain the secret.
+   * Refer to the README to check out the cloudflare worker's code.
+   */
   if (
     env.isProduction &&
     (!conn.req.headers['x-cf-secret'] ||
