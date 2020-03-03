@@ -37,12 +37,21 @@ const {
 const env = require('../admin/env');
 const routes = require('../routes');
 const { Logging } = require('@google-cloud/logging');
+const { logger, beautifier } = require('../logger');
 
 const handleResource = conn => {
   const resource = routes(conn.req);
 
   /** 404 */
   if (!resource.func) {
+    logger.info(
+      `[api][server.js][handleResource][404] ${beautifier({
+        url: conn.req.url,
+        headers: conn.req.headers,
+        body: conn.req.body,
+      })}`,
+    );
+
     return sendResponse(
       conn,
       code.notFound,
@@ -60,6 +69,15 @@ const handleResource = conn => {
     !hasSupportClaims(conn.requester.customClaims);
 
   if (rejectAdminRequest || rejectSupportRequest) {
+    logger.info(
+      `[api][server.js][handleResource][missingPermissions] ${beautifier({
+        url: conn.req.body,
+        query: conn.req.query,
+        body: conn.req.body,
+        headers: conn.req.headers,
+      })}`,
+    );
+
     return sendResponse(
       conn,
       code.forbidden,
@@ -122,22 +140,37 @@ const getProfile = conn => {
         profileDoc.get('uid') &&
         profileDoc.get('uid') !== conn.requester.uid
       ) {
-        console.log({
-          authCreationTime: AUTH_CREATION_TIMESTAMP,
-          now: Date.now(),
-          msg: `The uid and phone number of the requester does not match.`,
-          phoneNumber: profileDoc.id,
-          profileUid: profileDoc.get('uid'),
-          authUid: conn.requester.uid,
-          gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
-          diff: Date.now() - AUTH_CREATION_TIMESTAMP,
-        });
+        // console.log({
+        //   authCreationTime: AUTH_CREATION_TIMESTAMP,
+        //   now: Date.now(),
+        //   msg: `The uid and phone number of the requester does not match.`,
+        //   phoneNumber: profileDoc.id,
+        //   profileUid: profileDoc.get('uid'),
+        //   authUid: conn.requester.uid,
+        //   gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
+        //   diff: Date.now() - AUTH_CREATION_TIMESTAMP,
+        // });
 
         /**
          * The user probably managed to change their phone number by something
          * other than out provided endpoint for updating the `auth`.
          * Disabling their account because this is not allowed.
          */
+        logger.info(
+          `[api][server.js][getProfile][then profileDoc][userDisabled] ${beautifier(
+            {
+              authCreationTime: AUTH_CREATION_TIMESTAMP,
+              now: Date.now(),
+              msg: `The uid and phone number of the requester does not match.`,
+              phoneNumber: profileDoc.id,
+              profileUid: profileDoc.get('uid'),
+              authUid: conn.requester.uid,
+              gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
+              diff: Date.now() - AUTH_CREATION_TIMESTAMP,
+            },
+          )}`,
+        );
+
         return disableAccount(
           conn,
           `The uid and phone number of the requester does not match.`,
@@ -158,12 +191,8 @@ const getProfile = conn => {
 
         batch.set(
           rootCollections.updates.doc(conn.requester.uid),
-          {
-            phoneNumber: conn.requester.phoneNumber,
-          },
-          {
-            merge: true,
-          },
+          { phoneNumber: conn.requester.phoneNumber },
+          { merge: true },
         );
       }
 
@@ -176,6 +205,17 @@ const getUserAuthFromIdToken = async (conn, decodedIdToken) => {
   const userRecord = await auth.getUser(decodedIdToken.uid);
 
   if (userRecord.disabled) {
+    logger.info(
+      `[api][server.js][getUserAuthFromIdToken][userRecord.disabled] ${beautifier(
+        {
+          userRecord,
+          url: conn.req.url,
+          headers: conn.req.headers,
+          body: conn.req.body,
+        },
+      )}`,
+    );
+
     /** Users with disabled accounts cannot request any operation **/
     return sendResponse(
       conn,
@@ -253,6 +293,17 @@ const checkAuthorizationToken = async conn => {
   const result = headerValid(conn.req.headers);
 
   if (!result.isValid) {
+    logger.info(
+      `[api][server.js][checkAuthorizationToken][authorizationHeaderMissing] ${beautifier(
+        {
+          result,
+          headers: conn.req.headers,
+          body: conn.req.body,
+          url: conn.req.url,
+        },
+      )}`,
+    );
+
     return sendResponse(conn, code.forbidden, result.message);
   }
 
@@ -265,6 +316,15 @@ const checkAuthorizationToken = async conn => {
 
     return getUserAuthFromIdToken(conn, decodedIdToken);
   } catch (error) {
+    logger.info(
+      `[api][server.js][checkAuthorizationToken][catch] ${beautifier({
+        errorMessage: error.message,
+        url: conn.req.url,
+        query: conn.req.query,
+        body: conn.req.body,
+        headers: conn.req.headers,
+      })}`,
+    );
     if (
       error.code === 'auth/id-token-expired' ||
       error.code === 'auth/id-token-revoked'
@@ -276,14 +336,15 @@ const checkAuthorizationToken = async conn => {
       );
     }
 
-    const errorObject = {
-      error,
-      url: conn.req.url,
-      body: conn.req.body,
-      header: conn.req.headers,
-    };
+    // const errorObject = {
+    //   error,
+    //   url: conn.req.url,
+    //   body: conn.req.body,
+    //   header: conn.req.headers,
+    // };
 
-    await reportBackgroundError(errorObject, 'AUTH_REJECTION');
+    // TODO: Useless, remove this and the event related to this in stackdriver monitoring
+    // await reportBackgroundError(errorObject, 'AUTH_REJECTION');
 
     return sendResponse(conn, code.unauthorized, 'Unauthorized');
   }
@@ -330,6 +391,15 @@ module.exports = async (req, res) => {
   }
 
   if (!allowedMethods.includes(req.method)) {
+    logger.info(
+      `[api][server.js][module.exports][unsupportedMethod] ${beautifier({
+        method: conn.req.method,
+        body: conn.req.body,
+        url: conn.req.url,
+        query: conn.req.query,
+      })}`,
+    );
+
     return sendResponse(
       conn,
       code.notImplemented,
@@ -365,6 +435,13 @@ module.exports = async (req, res) => {
     (!conn.req.headers['x-cf-secret'] ||
       conn.req.headers['x-cf-secret'] !== env.cfSecret)
   ) {
+    logger.info(
+      `[api][server.js][module.exports][missingXCFHeaders] ${beautifier({
+        headers: conn.req.headers,
+        url: conn.req.url,
+        body: conn.req.body,
+      })}`,
+    );
     return sendResponse(
       conn,
       code.forbidden,
