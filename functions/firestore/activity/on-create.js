@@ -525,7 +525,8 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
   const { startTime, endTime } = firstSchedule;
   const startTimeMoment = momentTz(startTime);
   const endTimeMoment = momentTz(endTime);
-  const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
+  // incrementing by 1 to account for moment calculation difference
+  const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days') + 1;
 
   // leave is for a date which is 2 months back => don't allow
 
@@ -598,8 +599,9 @@ const handlePayroll = async (conn, locals) => {
     return handleLeaveOrOnDuty(conn, locals);
   }
 
-  const startMoment = momentTz(conn.req.body.schedule[0].endTime);
-  const endMoment = momentTz(conn.req.body.schedule[0].endTime);
+  // The year is skipped for now as the query doesnt fetch the current year correctly
+  const startMoment = momentTz(conn.req.body.schedule[0].startTime);
+  // const endMoment = momentTz(conn.req.body.schedule[0].endTime);
 
   locals.maxLeavesAllowed = Number.POSITIVE_INFINITY;
   locals.leavesTakenThisYear = 0;
@@ -608,6 +610,8 @@ const handlePayroll = async (conn, locals) => {
     locals.maxLeavesAllowed = 20;
   }
 
+  // startYear in the leave fetching query was wrong, only creationYear paramter was present
+  // now the second query fetches the earlier leaves correctly
   const [leaveTypeQuery, leaveActivityQuery] = await Promise.all([
     rootCollections.activities
       .where('office', '==', locals.officeDoc.get('office'))
@@ -621,15 +625,15 @@ const handlePayroll = async (conn, locals) => {
       .get(),
     locals.officeDoc.ref
       .collection(subcollectionNames.ACTIVITIES)
-      .where('creator', '==', conn.requester.phoneNumber)
+      .where('creator.phoneNumber', '==', conn.requester.phoneNumber)
       .where('template', '==', 'leave')
       .where(
         'attachment.Leave Type.value',
         '==',
         conn.req.body.attachment['Leave Type'].value,
       )
-      .where('startYear', '==', startMoment.year())
-      .where('endYear', '==', endMoment.year())
+      .where('creationYear', '==', startMoment.year())
+      //.where('endYear', '==', endMoment.year())
       /** Cancelled leaves don't count to the full number */
       .where('isCancelled', '==', false)
       .get(),
@@ -643,17 +647,19 @@ const handlePayroll = async (conn, locals) => {
 
   leaveActivityQuery.forEach(doc => {
     const [{ startTime, endTime }] = doc.get('schedule');
-
-    locals.leavesTakenThisYear += momentTz(
-      momentTz(endTime)
-        .endOf('day')
-        .valueOf(),
-    ).diff(
-      momentTz(startTime)
-        .startOf('day')
-        .valueOf(),
-      'days',
-    );
+    // Incrementing by 1 to account for moment time difference within same day,
+    // moment was always showing difference as 1 day less
+    locals.leavesTakenThisYear +=
+      momentTz(
+        momentTz(endTime)
+          .endOf('day')
+          .valueOf(),
+      ).diff(
+        momentTz(startTime)
+          .startOf('day')
+          .valueOf(),
+        'days',
+      ) + 1;
   });
 
   if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
