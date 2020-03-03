@@ -59,7 +59,7 @@ const googleMapsClient = require('@google/maps').createClient({
 
 // updates the subscription activities on employee activity update
 const handleSupervisorUpdate = async locals => {
-  const change = locals.change;
+  const { change } = locals;
   const activityEmployeeDataNew = change.after.data();
 
   // check for updated supervisors, delete old and new to all the employee's subscription activities
@@ -274,12 +274,12 @@ const getActivityReportName = async ({ report, template }) => {
     return report;
   }
 
-  const [templateDoc] = (
-    await rootCollections.activityTemplates
-      .where('name', '==', template)
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [templateDoc],
+  } = await rootCollections.activityTemplates
+    .where('name', '==', template)
+    .limit(1)
+    .get();
 
   // Some old activities are present with templates
   // which have been deleted. Eg. expense-type.
@@ -1870,15 +1870,15 @@ const handleUnpopulatedVenue = async ({ addendumDoc }) => {
   const distanceTolerance = getAccuracyTolerance(geopointAccuracy);
   const adjGP = adjustedGeopoint(currentGeopoint);
 
-  const [queriedActivity] = (
-    await rootCollections.activities
-      .where('officeId', '==', officeId)
-      // Branch, and customer
-      .where('adjustedGeopoints', '==', `${adjGP.latitude},${adjGP.longitude}`)
-      .where('status', '==', 'CONFIRMED')
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [queriedActivity],
+  } = await rootCollections.activities
+    .where('officeId', '==', officeId)
+    // Branch, and customer
+    .where('adjustedGeopoints', '==', `${adjGP.latitude},${adjGP.longitude}`)
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get();
 
   // { isAccurate: false, venueQuery: null };
   if (!queriedActivity) {
@@ -2042,8 +2042,6 @@ const handleAddendum = async locals => {
   if (!currentGeopoint) {
     return;
   }
-
-  console.log({ currentGeopoint });
 
   const batch = db.batch();
   const promises = [];
@@ -3265,8 +3263,12 @@ const reimburseKmAllowance = async locals => {
     const amountThisTime = currencyJs(kmRate)
       .multiply(locals.addendumDocData.distanceTravelled)
       .toString();
-    const [oldReimbursementDoc] = previousKmReimbursementQuery.docs;
-    const [oldUpdatesDoc] = previousReimbursementUpdateQuery.docs;
+    const {
+      docs: [oldReimbursementDoc],
+    } = previousKmReimbursementQuery;
+    const {
+      docs: [oldUpdatesDoc],
+    } = previousReimbursementUpdateQuery;
     const r1 = rootCollections.offices
       .doc(officeId)
       .collection(subcollectionNames.REIMBURSEMENTS)
@@ -4584,10 +4586,10 @@ const activityOnWrite = async change => {
   const locals = await handleProfile(change);
 
   /*
-        @see BugFix
-          This function checks for updated phone numbers except employee's phone number and then
-          triggers the same change in subscription activities of the employee
-         */
+    @see BugFix
+    This function checks for updated phone numbers except employee's phone number and then
+    triggers the same change in subscription activities of the employee
+  */
   if (change.before.data() && change.after.data().template === 'employee') {
     await handleSupervisorUpdate(locals);
   }
