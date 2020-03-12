@@ -36,7 +36,6 @@ const {
 } = require('../admin/utils');
 const env = require('../admin/env');
 const routes = require('../routes');
-const { Logging } = require('@google-cloud/logging');
 const { logger, beautifier } = require('../logger');
 
 const handleResource = conn => {
@@ -140,16 +139,16 @@ const getProfile = conn => {
         profileDoc.get('uid') &&
         profileDoc.get('uid') !== conn.requester.uid
       ) {
-        // console.log({
-        //   authCreationTime: AUTH_CREATION_TIMESTAMP,
-        //   now: Date.now(),
-        //   msg: `The uid and phone number of the requester does not match.`,
-        //   phoneNumber: profileDoc.id,
-        //   profileUid: profileDoc.get('uid'),
-        //   authUid: conn.requester.uid,
-        //   gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
-        //   diff: Date.now() - AUTH_CREATION_TIMESTAMP,
-        // });
+        console.log({
+          authCreationTime: AUTH_CREATION_TIMESTAMP,
+          now: Date.now(),
+          msg: `The uid and phone number of the requester does not match.`,
+          phoneNumber: profileDoc.id,
+          profileUid: profileDoc.get('uid'),
+          authUid: conn.requester.uid,
+          gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
+          diff: Date.now() - AUTH_CREATION_TIMESTAMP,
+        });
 
         /**
          * The user probably managed to change their phone number by something
@@ -179,15 +178,7 @@ const getProfile = conn => {
 
       /** AuthOnCreate probably failed. This is the fallback */
       if (!profileDoc.get('uid')) {
-        batch.set(
-          profileDoc.ref,
-          {
-            uid: conn.requester.uid,
-          },
-          {
-            merge: true,
-          },
-        );
+        batch.set(profileDoc.ref, { uid: conn.requester.uid }, { merge: true });
 
         batch.set(
           rootCollections.updates.doc(conn.requester.uid),
@@ -251,38 +242,6 @@ const getUserAuthFromIdToken = async (conn, decodedIdToken) => {
   return getProfile(conn);
 };
 
-const reportBackgroundError = async (error, logName) => {
-  // DOCS: https://firebase.google.com/docs/functions/reporting-errors
-  const logging = new Logging();
-  const log = logging.log(logName);
-  const metadata = {
-    resource: {
-      type: 'cloud_function',
-      labels: {
-        function_name: process.env.FUNCTION_NAME,
-      },
-    },
-  };
-
-  const errorEvent = {
-    message: error.stack,
-    serviceContext: {
-      service: process.env.FUNCTION_NAME,
-      resourceType: 'cloud_function',
-    },
-  };
-
-  return new Promise((resolve, reject) => {
-    return log.write(log.entry(metadata, errorEvent), error => {
-      if (error) {
-        return reject(new Error(error));
-      }
-
-      return resolve();
-    });
-  });
-};
-
 /**
  * Verifies the `id-token` form the Authorization header in the request.
  *
@@ -335,16 +294,6 @@ const checkAuthorizationToken = async conn => {
         'Please restart the Growthfile app',
       );
     }
-
-    // const errorObject = {
-    //   error,
-    //   url: conn.req.url,
-    //   body: conn.req.body,
-    //   header: conn.req.headers,
-    // };
-
-    // TODO: Useless, remove this and the event related to this in stackdriver monitoring
-    // await reportBackgroundError(errorObject, 'AUTH_REJECTION');
 
     return sendResponse(conn, code.unauthorized, 'Unauthorized');
   }
