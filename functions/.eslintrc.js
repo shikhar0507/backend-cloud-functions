@@ -54,5 +54,6 @@ module.exports = {
     'require-atomic-updates': 'off',
     'prefer-const': 'error',
     'one-var-declaration-per-line': 'error',
+    'func-style': ['error', 'declaration', { allowArrowFunctions: true }],
   },
 };

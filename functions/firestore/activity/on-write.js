@@ -60,24 +60,29 @@ const googleMapsClient = require('@google/maps').createClient({
   Promise: Promise,
 });
 
-// submit relevant activities to GrowthfileMS
-// this can be run in parallel as it does not affect working of other functions
-const growthFileMsIntegration = async function(change) {
-  if (!change.after.data()) return null;
-  const activityID = change.after.id;
+const growthFileMsIntegration = async change => {
+  if (!change.after.data()) {
+    return null;
+  }
+
+  const {
+    after: { id: activityId },
+  } = change;
   const activityData = change.after.data();
+
   switch (activityData.template) {
     case 'office':
-      activityData['officeId'] = activityID;
-      activityData['template'] = 'office';
+      activityData.officeId = activityId;
+      activityData.template = 'office';
       break;
     case 'recipient':
-      activityData['template'] = 'recipient';
-      activityData['recipientId'] = activityID;
+      activityData.template = 'recipient';
+      activityData.recipientId = activityId;
       break;
     default:
       return null;
   }
+
   return growthfileMsRequester(
     activityData,
     msRequestTypes.ACTIVITY,
@@ -108,9 +113,11 @@ const handleSupervisorUpdate = async locals => {
     if (oldNumber !== '' && newNumber === '') {
       toDelete.push(oldNumber);
     }
+
     if (oldNumber === '' && newNumber !== '') {
       toAdd.push(newNumber);
     }
+
     if (oldNumber !== '' && newNumber !== '') {
       toDelete.push(oldNumber);
       toAdd.push(newNumber);
@@ -4423,6 +4430,9 @@ const templateHandler = async locals => {
 
   // await mapActivityToUserUpdates(locals.change.after, null);
 
+  // handle growthfileMs integration parallely
+  growthFileMsIntegration(locals.change).catch(console.error);
+
   return;
 };
 
@@ -4634,8 +4644,6 @@ const activityOnWrite = async change => {
 
 module.exports = (change, context) => {
   try {
-    // handle growthfileMs integration parallely
-    growthFileMsIntegration(change).catch(console.error);
     return activityOnWrite(change, context);
   } catch (error) {
     console.error({

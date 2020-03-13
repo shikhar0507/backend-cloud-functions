@@ -56,10 +56,6 @@ const googleMapsClient = require('@google/maps').createClient({
   Promise: Promise,
 });
 
-// const getCurrencyFromCountry = async country => {
-
-// };
-
 const validator = body => {
   const {
     placeId,
@@ -76,7 +72,7 @@ const validator = body => {
   }
 
   // The placeId is optional. But, if present, should be a non-empty string
-  if (!isNonEmptyString(placeId)) {
+  if (placeId && !isNonEmptyString(placeId)) {
     return `Field 'placeId' should be a non-empty string`;
   }
 
@@ -88,13 +84,17 @@ const validator = body => {
     return `Field 'registeredOfficeAddress' should be non-empty string`;
   }
 
-  if (
-    !firstContact ||
-    !secondContact ||
-    !isE164PhoneNumber(firstContact.phoneNumber) ||
-    !isE164PhoneNumber(secondContact.phoneNumber)
-  ) {
-    return `Both 'firstContact' and 'secondContact' should be valid phone numbers`;
+  const INVALID_PHONE_NUMBER_REJECTION_MESSAGE =
+    `Field 'firstContact' should be an object in the form` +
+    ` {"phoneNumber": "+911234567891", "displayName": "", "email": ""}`;
+
+  if (!firstContact || !isE164PhoneNumber(firstContact.phoneNumber)) {
+    return INVALID_PHONE_NUMBER_REJECTION_MESSAGE;
+  }
+
+  // secondContact, if present, is validated
+  if (secondContact && !isE164PhoneNumber(secondContact.phoneNumber)) {
+    return INVALID_PHONE_NUMBER_REJECTION_MESSAGE;
   }
 
   if (!isValidGeopoint(geopoint, false)) {
@@ -104,12 +104,11 @@ const validator = body => {
   return null;
 };
 
-const getAddendumRef = officeId => {
-  return rootCollections.offices
+const getAddendumRef = officeId =>
+  rootCollections.offices
     .doc(officeId)
     .collection(subcollectionNames.ADDENDUM)
     .doc();
-};
 
 const getWeekdayStartTime = (firstResult = {}) => {
   const { opening_hours: openingHours } = firstResult;
@@ -135,8 +134,6 @@ const getWeekdayEndTime = (firstResult = {}) => {
   if (!openingHours || !openingHours.periods) {
     return '';
   }
-
-  // firstResult.opening_hours.periods[0].close.day
   const [closingPeriod] = openingHours.periods.filter(period => {
     return period.close && period.close.day === 1;
   });
@@ -179,6 +176,9 @@ const getWeeklyOff = placeApiResult => {
 };
 
 const placeIdToBranch = async (placeId, creator) => {
+  if (!placeId) {
+    return null;
+  }
   const {
     docs: [branchTemplate],
   } = await rootCollections.activityTemplates
@@ -187,9 +187,7 @@ const placeIdToBranch = async (placeId, creator) => {
     .get();
 
   const placeApiResult = await googleMapsClient
-    .place({
-      placeid: placeId,
-    })
+    .place({ placeid: placeId })
     .asPromise();
 
   const placesApiResult = await googleMapsClient
@@ -219,12 +217,12 @@ const placeIdToBranch = async (placeId, creator) => {
   );
 
   const branchActivity = {
+    placeId,
+    creator,
     attachment: attachment.toObject(),
     template: branchTemplate.get('name'),
     timestamp: Date.now(),
     createTimestamp: Date.now(),
-    placeId,
-    creator,
     schedule: branchTemplate.get('schedule').map(name => {
       return {
         name,
@@ -265,13 +263,17 @@ const createOffice = async conn => {
   }
 
   const {
-    name: office,
-    firstContact,
-    secondContact,
-    registeredOfficeAddress,
-    placeId,
-    geopoint,
-  } = conn.req.body;
+    req: {
+      body: {
+        name: office,
+        firstContact,
+        registeredOfficeAddress,
+        geopoint,
+        placeId = '',
+        secondContact = { phoneNumber: '' },
+      },
+    },
+  } = conn;
 
   const {
     docs: [officeDoc],
@@ -288,12 +290,18 @@ const createOffice = async conn => {
     );
   }
 
-  const { phoneNumber, displayName, photoURL } = conn.requester;
+  const {
+    requester: { phoneNumber, displayName, photoURL },
+  } = conn;
   const batch = db.batch();
   const template = 'office';
   const [
-    templateSubcriptionQuery,
-    checkInSubscriptionQuery,
+    {
+      docs: [templateDoc],
+    },
+    {
+      docs: [checkInSubscriptionDoc],
+    },
   ] = await Promise.all([
     rootCollections.activityTemplates
       .where('name', '==', template)
@@ -303,13 +311,10 @@ const createOffice = async conn => {
       .where('template', '==', 'subscription')
       .where('status', '==', 'CONFIRMED')
       .where('attachment.Template.value', '==', 'check-in')
-      .where('attachment.Phone Number.value', '==', 'phoneNumber')
+      .where('attachment.Phone Number.value', '==', phoneNumber)
       .limit(1)
       .get(),
   ]);
-
-  const [templateDoc] = templateSubcriptionQuery.docs;
-  const [checkInSubscriptionDoc] = checkInSubscriptionQuery.docs;
 
   // user already has subscription of check-in
   if (checkInSubscriptionDoc) {
@@ -322,17 +327,7 @@ const createOffice = async conn => {
 
   const activityRef = rootCollections.activities.doc();
   const { id: activityId } = activityRef;
-
-  // This api only creates the office activity.
   const officeId = activityId;
-  const activityInstance = {
-    template,
-    placeId: placeId || '',
-    timestamp: Date.now(),
-    addendumDocRef: getAddendumRef(activityId),
-    activityName: `OFFICE: ${office}`,
-  };
-
   const creator = new Creator(phoneNumber, displayName, photoURL).toObject();
 
   if (!registeredOfficeAddress) {
@@ -344,25 +339,29 @@ const createOffice = async conn => {
   }
 
   const branchActivity = await placeIdToBranch(placeId, creator);
-  const timezone = await latLngToTimezone(branchActivity.venue[0].geopoint);
+  const timezone = branchActivity
+    ? await latLngToTimezone(branchActivity.venue[0].geopoint)
+    : 'Asia/Kolkata';
 
-  activityInstance.officeId = officeId;
-  activityInstance.canEditRule = templateDoc.get('canEditRule');
-  activityInstance.creator = creator;
-  activityInstance.activityName = `Office: ${office}`;
-  activityInstance.hidden = templateDoc.get('hidden');
-  activityInstance.office = office;
-  activityInstance.schedule = templateDoc.get('schedule').map(name => {
-    return {
+  const activityInstance = {
+    template,
+    placeId,
+    timezone,
+    officeId,
+    creator,
+    office,
+    timestamp: Date.now(),
+    addendumDocRef: getAddendumRef(activityId),
+    activityName: `OFFICE: ${office}`,
+    canEditRule: templateDoc.get('canEditRule'),
+    hidden: templateDoc.get('hidden'),
+    schedule: templateDoc.get('schedule').map(name => ({
       name,
       startTime: '',
       endTime: '',
-    };
-  });
-  activityInstance.status = templateDoc.get('statusOnCreate');
-  activityInstance.timezone = timezone;
-  activityInstance.venue = templateDoc.get('venue').map(venueDescriptor => {
-    return {
+    })),
+    status: templateDoc.get('statusOnCreate'),
+    venue: templateDoc.get('venue').map(venueDescriptor => ({
       venueDescriptor,
       geopoint: {
         latitude: '',
@@ -370,30 +369,29 @@ const createOffice = async conn => {
       },
       location: '',
       address: '',
-    };
-  });
-
-  activityInstance.attachment = new Attachment(
-    {
-      Name: office,
-      'First Contact': firstContact.phoneNumber,
-      'Second Contact': secondContact.phoneNumber,
-      Timezone: timezone,
-      'Registered Office Address': registeredOfficeAddress,
-      Currency: 'INR',
-    },
-    templateDoc.get('attachment'),
-  ).toObject();
+    })),
+    attachment: new Attachment(
+      {
+        Name: office,
+        'First Contact': firstContact.phoneNumber,
+        'Second Contact': secondContact.phoneNumber,
+        Timezone: timezone,
+        'Registered Office Address': registeredOfficeAddress,
+        Currency: 'INR',
+      },
+      templateDoc.get('attachment'),
+    ).toObject(),
+  };
 
   const { date, months: month, years: year } = momentTz().toObject();
-
   const assignees = Array.from(
     new Set([
       firstContact.phoneNumber,
       secondContact.phoneNumber,
       conn.requester.phoneNumber,
     ]),
-  );
+    // Doing this because secondContact is optional in the request body
+  ).filter(Boolean);
 
   const addendumData = {
     date,
@@ -423,9 +421,9 @@ const createOffice = async conn => {
     provider: conn.req.body.geopoint.provider || null,
   };
 
-  batch.set(activityRef, activityInstance);
-
-  batch.set(activityInstance.addendumDocRef, addendumData);
+  batch
+    .set(activityRef, activityInstance)
+    .set(activityInstance.addendumDocRef, addendumData);
 
   assignees.forEach(phoneNumber => {
     batch.set(
@@ -436,37 +434,37 @@ const createOffice = async conn => {
     );
   });
 
-  const branchActivityRef = rootCollections.activities.doc();
-  branchActivity.addendumDocRef = rootCollections.offices
-    .doc(officeId)
-    .collection(subcollectionNames.ADDENDUM)
-    .doc();
-  branchActivity.office = office;
-  branchActivity.officeId = officeId;
-  branchActivity.activityName = `BRANCH: ${branchActivity.attachment.Name.value}`;
+  if (placeId) {
+    const branchActivityRef = rootCollections.activities.doc();
 
-  batch.set(branchActivityRef, branchActivity);
+    branchActivity.addendumDocRef = getAddendumRef(officeDoc);
+    branchActivity.office = office;
+    branchActivity.officeId = officeId;
+    branchActivity.activityName = `BRANCH: ${branchActivity.attachment.Name.value}`;
 
-  batch.set(branchActivity.addendumDocRef, {
-    date,
-    month,
-    year,
-    activityId: branchActivityRef.id,
-    activityData: branchActivity,
-    user: conn.requester.phoneNumber,
-    userDisplayName: conn.requester.displayName,
-    uid: conn.requester.uid,
-    share: assignees,
-    action: httpsActions.create,
-    template: branchActivity.template,
-    location: getGeopointObject(geopoint),
-    timestamp: Date.now(),
-    userDeviceTimestamp: conn.req.body.timestamp,
-    activityName: activityInstance.activityName,
-    isSupportRequest: conn.requester.isSupportRequest,
-    geopointAccuracy: conn.req.body.geopoint.accuracy || null,
-    provider: conn.req.body.geopoint.provider || null,
-  });
+    batch
+      .set(branchActivityRef, branchActivity)
+      .set(branchActivity.addendumDocRef, {
+        date,
+        month,
+        year,
+        activityId: branchActivityRef.id,
+        activityData: branchActivity,
+        user: conn.requester.phoneNumber,
+        userDisplayName: conn.requester.displayName,
+        uid: conn.requester.uid,
+        share: assignees,
+        action: httpsActions.create,
+        template: branchActivity.template,
+        location: getGeopointObject(geopoint),
+        timestamp: Date.now(),
+        userDeviceTimestamp: conn.req.body.timestamp,
+        activityName: activityInstance.activityName,
+        isSupportRequest: conn.requester.isSupportRequest,
+        geopointAccuracy: conn.req.body.geopoint.accuracy || null,
+        provider: conn.req.body.geopoint.provider || null,
+      });
+  }
 
   await batch.commit();
 

@@ -1507,95 +1507,6 @@ const getDefaultAttendanceObject = () => {
   };
 };
 
-/**
- * Populates leave, weeklyOff and holidays for the user
- * @param {} params
- */
-// const newBackfill = async params => {
-//   /**
-//    * if prev checkin timestamp is of current month
-//    * exit
-//    *
-//    * fetch prev month attendance doc
-//    * if doc found
-//    *   prev check in date to today
-//    *     populate leave, weekly off, holiday
-//    *
-//    * if doc doesn't exist
-//    *   start => greatestUnix(1st of last month, employee creation, lastCheckIn timestamp)
-//    *   end => last date of prev month
-//    */
-
-//   // prev checkin timestamp is in check-in subscription doc.
-//   const {
-//     officeId,
-//     lastCheckInTimestamp,
-//     phoneNumber,
-//     roleObject,
-//   } = params;
-
-//   const lastCheckInMonth = momentTz(lastCheckInTimestamp).month();
-//   const monthToday = momentTz().month();
-
-//   if (lastCheckInMonth === monthToday) {
-//     return;
-//   }
-
-//   const previousMonthMoment = momentTz().subtract(1, 'month');
-
-//   const [prevMonthAttendanceDoc] = (
-//     await rootCollections
-//     .offices
-//     .doc(officeId)
-//     .collection(subcollectionNames.ATTENDANCES)
-//     .where('phoneNumber', '==', phoneNumber)
-//     .where('month', '==', previousMonthMoment.month())
-//     .where('year', '==', previousMonthMoment.year())
-//     .limit(1)
-//     .get()
-//   ).docs;
-
-//   const getStartEndObject = (prevMonthAttendanceDoc) => {
-//     // if doc doesn 't exist
-//     // start => greatestUnix(1 st of last month, employee creation, lastCheckIn timestamp) *
-//     // end => last date of prev month
-//     if (!prevMonthAttendanceDoc) {
-//       const startUnix = Math.max([
-//         previousMonthMoment.startOf('month').valueOf(),
-//         roleObject.createTime.toMillis(),
-//         lastCheckInTimestamp
-//       ]);
-
-//       const endUnix = previousMonthMoment.endOf('month').valueOf();
-
-//       return {
-//         startUnix,
-//         endUnix
-//       };
-//     }
-
-//     // if doc found
-//     // prev check in date to today
-//     //   populate leave, weekly off, holiday
-//     const startUnix = lastCheckInTimestamp;
-//     const endUnix = momentTz().valueOf();
-
-//     return {
-//       startUnix,
-//       endUnix
-//     };
-//   };
-
-//   const {
-//     startUnix,
-//     endUnix
-//   } = getStartEndObject(prevMonthAttendanceDoc);
-
-//   const momentStart = momentTz(startUnix);
-//   const momentEnd = momentTz(endUnix);
-
-// };
-
 const getScheduleDates = scheduleObjects => {
   const allDateStrings = [];
 
@@ -1686,7 +1597,7 @@ const maskLastDigits = (
   );
 };
 
-const growthfileMsRequester = async function(data, type, urlSuffix) {
+const growthfileMsRequester = async (data, type, urlSuffix) => {
   try {
     return rpn(`${env.msActivityUrl}${urlSuffix}`, {
       json: true,

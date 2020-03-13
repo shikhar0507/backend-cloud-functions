@@ -37,6 +37,7 @@ const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
 const { growthfileMsRequester } = require('../admin/utils');
+const SERVICE_NAME = `[timer][on-create]`;
 
 sgMail.setApiKey(env.sgMailApiKey);
 
@@ -45,10 +46,11 @@ const growthfileMsTimer = async timerDocData =>
   growthfileMsRequester(timerDocData, msRequestTypes.TIMER, msEndpoints.TIMER);
 
 const sendErrorReport = async () => {
-  const today = momentTz().subtract(1, 'days');
+  try {
+    const today = momentTz().subtract(1, 'days');
 
-  const getHTMLString = (doc, index) => {
-    return `
+    const getHTMLString = (doc, index) => {
+      return `
     <h2>${index + 1}. Error message: ${doc.get('message')} | ${doc.id}</h2>
     <h3>First Occurrance: ${doc.createTime.toDate()}</h3>
     <h3>Last Occurrance: ${doc.updateTime.toDate()}</h3>
@@ -59,95 +61,110 @@ const sendErrorReport = async () => {
     <h3>Error Device</h3>
     <p><pre>${JSON.stringify(doc.get('deviceObject'), ' ')}</pre></p>
     <hr>`;
-  };
+    };
 
-  const docs = await rootCollections.errors
-    .where('date', '==', today.date())
-    .where('month', '==', today.month())
-    .where('year', '==', today.year())
-    .get();
+    const docs = await rootCollections.errors
+      .where('date', '==', today.date())
+      .where('month', '==', today.month())
+      .where('year', '==', today.year())
+      .get();
 
-  if (docs.empty) {
-    // No errors yesterday
-    return;
+    if (docs.empty) {
+      // No errors yesterday
+      return;
+    }
+
+    let messageBody = '';
+    let index = 0;
+
+    docs.docs.forEach(doc => {
+      if (doc.get('skipFromErrorReport')) return;
+
+      messageBody += `${getHTMLString(doc, index)}\n\n`;
+
+      index++;
+    });
+
+    // No loggable errors for the day
+    if (!messageBody) return;
+
+    const subject =
+      `${process.env.GCLOUD_PROJECT}` +
+      ` Frontend Errors ${today.format(dateFormats.DATE)}`;
+
+    return sgMail.send({
+      subject,
+      to: env.instantEmailRecipientEmails,
+      from: {
+        name: 'Growthile',
+        email: env.systemEmail,
+      },
+      html: messageBody,
+    });
+  } catch (error) {
+    console.error(
+      `${SERVICE_NAME}[sendErrorReport][catch][error] ${error.message}`,
+    );
   }
-
-  let messageBody = '';
-  let index = 0;
-
-  docs.docs.forEach(doc => {
-    if (doc.get('skipFromErrorReport')) return;
-
-    messageBody += `${getHTMLString(doc, index)}\n\n`;
-
-    index++;
-  });
-
-  // No loggable errors for the day
-  if (!messageBody) return;
-
-  const subject =
-    `${process.env.GCLOUD_PROJECT}` +
-    ` Frontend Errors ${today.format(dateFormats.DATE)}`;
-
-  return sgMail.send({
-    subject,
-    to: env.instantEmailRecipientEmails,
-    from: {
-      name: 'Growthile',
-      email: env.systemEmail,
-    },
-    html: messageBody,
-  });
 };
 
 const fetchExternalTokens = async timerDoc => {
-  const getKeyId = (applicationKey, keyId) => {
-    return `${keyId}:${applicationKey}`;
-  };
+  try {
+    const getKeyId = (applicationKey, keyId) => {
+      return `${keyId}:${applicationKey}`;
+    };
 
-  const keyWithPrefix = getKeyId(env.backblaze.apiKey, env.backblaze.keyId);
-  const authorization = `Basic ${new Buffer(keyWithPrefix).toString('base64')}`;
+    const keyWithPrefix = getKeyId(env.backblaze.apiKey, env.backblaze.keyId);
+    const authorization = `Basic ${new Buffer(keyWithPrefix).toString(
+      'base64',
+    )}`;
 
-  const uri = url.resolve(
-    'https://api.backblazeb2.com',
-    '/b2api/v2/b2_authorize_account',
-  );
+    const uri = url.resolve(
+      'https://api.backblazeb2.com',
+      '/b2api/v2/b2_authorize_account',
+    );
 
-  const response = await rpn(uri, {
-    headers: {
-      Authorization: authorization,
-    },
-    json: true,
-  });
+    const response = await rpn(uri, {
+      headers: { Authorization: authorization },
+      json: true,
+    });
 
-  return timerDoc.ref.set(
-    {
-      apiUrl: response.apiUrl,
-      backblazeAuthorizationToken: response.authorizationToken,
-      downloadUrl: response.downloadUrl,
-    },
-    {
-      merge: true,
-    },
-  );
+    return timerDoc.ref.set(
+      {
+        apiUrl: response.apiUrl,
+        backblazeAuthorizationToken: response.authorizationToken,
+        downloadUrl: response.downloadUrl,
+      },
+      { merge: true },
+    );
+  } catch (error) {
+    console.error(
+      `${SERVICE_NAME}[fetchExternalTokens][catch][error] ${error.message}`,
+    );
+  }
 };
 
 const deleteInstantDocs = async () => {
-  const momentToday = momentTz();
-  const hundredDaysBeforeMoment = momentToday.subtract(100, 'days');
-  const batch = db.batch();
+  try {
+    const momentToday = momentTz();
+    const hundredDaysBeforeMoment = momentToday.subtract(100, 'days');
+    const batch = db.batch();
 
-  // Delete docs older than 100 days
-  const docs = await rootCollections.instant
-    .where('timestamp', '<=', hundredDaysBeforeMoment.valueOf())
-    .get();
+    // Delete docs older than 100 days
+    const docs = await rootCollections.instant
+      .where('timestamp', '<=', hundredDaysBeforeMoment.valueOf())
+      .get();
 
-  const instantCallback = doc => batch.delete(doc.ref);
+    const instantCallback = doc => batch.delete(doc.ref);
 
-  docs.forEach(instantCallback);
+    docs.forEach(instantCallback);
 
-  return batch.commit();
+    return batch.commit();
+  } catch (error) {
+    console.error(
+      `${SERVICE_NAME}[deleteInstantDocs][catch][error] ${error.message}`,
+    );
+  }
 };
 
 module.exports = async timerDoc => {
@@ -161,14 +178,7 @@ module.exports = async timerDoc => {
   growthfileMsTimer(timerDoc.data()).catch(console.error);
 
   try {
-    await timerDoc.ref.set(
-      {
-        sent: true,
-      },
-      {
-        merge: true,
-      },
-    );
+    await timerDoc.ref.set({ sent: true }, { merge: true });
 
     const messages = [];
 
@@ -216,15 +226,7 @@ module.exports = async timerDoc => {
     const batch = db.batch();
 
     const recipientCallback = doc =>
-      batch.set(
-        doc.ref,
-        {
-          timestamp: Date.now(),
-        },
-        {
-          merge: true,
-        },
-      );
+      batch.set(doc.ref, { timestamp: Date.now() }, { merge: true });
 
     recipientsQuery.forEach(recipientCallback);
 
@@ -239,9 +241,7 @@ module.exports = async timerDoc => {
           expectedRecipientTriggersCount: recipientsQuery.size,
           recipientsTriggeredToday: 0,
         },
-        {
-          merge: true,
-        },
+        { merge: true },
       );
     }
 
@@ -249,6 +249,8 @@ module.exports = async timerDoc => {
 
     return deleteInstantDocs();
   } catch (error) {
-    console.error(error);
+    console.error(
+      `${SERVICE_NAME}[module.exports][catch][error] ${error.message}`,
+    );
   }
 };
