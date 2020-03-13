@@ -83,11 +83,11 @@ const growthFileMsIntegration = async change => {
       return null;
   }
 
-  return growthfileMsRequester(
-    activityData,
-    msRequestTypes.ACTIVITY,
-    msEndpoints.ACTIVITY,
-  );
+  return growthfileMsRequester({
+    method: msRequestTypes.ACTIVITY,
+    payload: activityData,
+    resourcePath: msEndpoints.ACTIVITY,
+  });
 };
 
 // updates the subscription activities on employee activity update
@@ -4431,7 +4431,7 @@ const templateHandler = async locals => {
   // await mapActivityToUserUpdates(locals.change.after, null);
 
   // handle growthfileMs integration parallely
-  growthFileMsIntegration(locals.change).catch(console.error);
+  await growthFileMsIntegration(locals.change).catch(console.error);
 
   return;
 };

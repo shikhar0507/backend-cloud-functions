@@ -41,10 +41,6 @@ const SERVICE_NAME = `[timer][on-create]`;
 
 sgMail.setApiKey(env.sgMailApiKey);
 
-// launch the request for timer doc integration to growthfile ms
-const growthfileMsTimer = async timerDocData =>
-  growthfileMsRequester(timerDocData, msRequestTypes.TIMER, msEndpoints.TIMER);
-
 const sendErrorReport = async () => {
   try {
     const today = momentTz().subtract(1, 'days');
@@ -174,8 +170,6 @@ module.exports = async timerDoc => {
     // For a single write.
     return;
   }
-  // timer doc growthfile ms integration
-  growthfileMsTimer(timerDoc.data()).catch(console.error);
 
   try {
     await timerDoc.ref.set({ sent: true }, { merge: true });
@@ -247,7 +241,13 @@ module.exports = async timerDoc => {
 
     await batch.commit();
 
-    return deleteInstantDocs();
+    await deleteInstantDocs();
+
+    return growthfileMsRequester({
+      payload: timerDoc.data(),
+      method: msRequestTypes.TIMER,
+      resourcePath: msEndpoints.TIMER,
+    });
   } catch (error) {
     console.error(
       `${SERVICE_NAME}[module.exports][catch][error] ${error.message}`,
