@@ -1598,6 +1598,10 @@ const maskLastDigits = (
 };
 
 const growthfileMsRequester = async ({ payload, method, resourcePath }) => {
+  if (!env.isProduction) {
+    return;
+  }
+
   try {
     // const uri = url.resolve(env.msActivityUrl, urlSuffix);
     return rpn(url.resolve(env.msActivityUrl, resourcePath), {
