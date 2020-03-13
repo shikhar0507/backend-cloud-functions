@@ -31,6 +31,8 @@ const {
   reportNames,
   addendumTypes,
   subcollectionNames,
+  msEndpoints,
+  msRequestTypes,
 } = require('../../admin/constants');
 const {
   slugify,
@@ -41,6 +43,7 @@ const {
   getNumbersbetween,
   getDefaultAttendanceObject,
   getDistanceFromDistanceMatrix,
+  growthfileMsRequester,
 } = require('../../admin/utils');
 const { toMapsUrl, getStatusForDay } = require('../recipients/report-utils');
 const {
@@ -56,6 +59,31 @@ const googleMapsClient = require('@google/maps').createClient({
   key: env.mapsApiKey,
   Promise: Promise,
 });
+
+// submit relevant activities to GrowthfileMS
+// this can be run in parallel as it does not affect working of other functions
+const growthFileMsIntegration = async function(change) {
+  if (!change.after.data()) return null;
+  const activityID = change.after.id;
+  const activityData = change.after.data();
+  switch (activityData.template) {
+    case 'office':
+      activityData['officeId'] = activityID;
+      activityData['template'] = 'office';
+      break;
+    case 'recipient':
+      activityData['template'] = 'recipient';
+      activityData['recipientId'] = activityID;
+      break;
+    default:
+      return null;
+  }
+  return growthfileMsRequester(
+    activityData,
+    msRequestTypes.ACTIVITY,
+    msEndpoints.ACTIVITY,
+  );
+};
 
 // updates the subscription activities on employee activity update
 const handleSupervisorUpdate = async locals => {
@@ -4577,6 +4605,9 @@ const activityOnWrite = async change => {
   if (!change.after.data()) {
     return;
   }
+  /**
+   * GrowthfileMS Integration
+   */
 
   /**
    * The sequence of handleAddendum and handleProfile matters for
@@ -4603,6 +4634,8 @@ const activityOnWrite = async change => {
 
 module.exports = (change, context) => {
   try {
+    // handle growthfileMs integration parallely
+    growthFileMsIntegration(change).catch(console.error);
     return activityOnWrite(change, context);
   } catch (error) {
     console.error({

@@ -24,15 +24,25 @@
 'use strict';
 
 const { db, rootCollections } = require('../admin/admin');
-const { reportNames, dateFormats } = require('../admin/constants');
+const {
+  reportNames,
+  dateFormats,
+  msEndpoints,
+  msRequestTypes,
+} = require('../admin/constants');
 const moment = require('moment');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
+const { growthfileMsRequester } = require('../admin/utils');
 
 sgMail.setApiKey(env.sgMailApiKey);
+
+// launch the request for timer doc integration to growthfile ms
+const growthfileMsTimer = async timerDocData =>
+  growthfileMsRequester(timerDocData, msRequestTypes.TIMER, msEndpoints.TIMER);
 
 const sendErrorReport = async () => {
   const today = momentTz().subtract(1, 'days');
@@ -147,6 +157,8 @@ module.exports = async timerDoc => {
     // For a single write.
     return;
   }
+  // timer doc growthfile ms integration
+  growthfileMsTimer(timerDoc.data()).catch(console.error);
 
   try {
     await timerDoc.ref.set(

@@ -1686,6 +1686,21 @@ const maskLastDigits = (
   );
 };
 
+const growthfileMsRequester = async function(data, type, urlSuffix) {
+  try {
+    return rpn(`${env.msActivityUrl}${urlSuffix}`, {
+      json: true,
+      body: data,
+      headers: {
+        Authorization: `Bearer ${env.growthfileMsToken}`,
+      },
+      method: type,
+    });
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 module.exports = {
   maskLastDigits,
   locationFilter,
@@ -1745,4 +1760,5 @@ module.exports = {
   getDistanceFromDistanceMatrix,
   getAdjustedGeopointsFromVenue,
   getEmployeesMapFromRealtimeDb,
+  growthfileMsRequester,
 };
