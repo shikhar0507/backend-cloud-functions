@@ -528,7 +528,6 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
 
   // leave is for a date which is 2 months back => don't allow
-
   const differenceInMonths = momentTz().diff(
     momentTz(startTime),
     'months',
@@ -697,14 +696,14 @@ const handleAssignees = async (conn, locals) => {
     typeActivity.has(conn.req.body.template) &&
     conn.req.body.attachment[key].value === ''
   ) {
-    const [typeActivityDoc] = (
-      await rootCollections.activities
-        .where('office', '==', conn.req.body.office)
-        .where('template', '==', `${conn.req.body.template}-type`)
-        .where('status', '==', 'CONFIRMED')
-        .limit(1)
-        .get()
-    ).docs;
+    const {
+      docs: [typeActivityDoc],
+    } = await rootCollections.activities
+      .where('office', '==', conn.req.body.office)
+      .where('template', '==', `${conn.req.body.template}-type`)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get();
 
     if (typeActivityDoc) {
       return sendResponse(conn, code.conflict, `${key} is required`);
@@ -952,15 +951,15 @@ const logInvaliCheckIn = async ({
 }) => {
   const { date, months: month, years: year } = momentTz().toObject();
   const message = 'Invalid CheckIn';
-  const [errorDoc] = (
-    await rootCollections.errors
-      .where('date', '==', date)
-      .where('month', '==', month)
-      .where('year', '==', year)
-      .where('message', '==', message)
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [errorDoc],
+  } = await rootCollections.errors
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .where('message', '==', message)
+    .limit(1)
+    .get();
 
   const data = errorDoc ? errorDoc.data() : {};
   const newUpdate = Object.assign({}, data, {

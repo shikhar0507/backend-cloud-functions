@@ -57,6 +57,94 @@ const googleMapsClient = require('@google/maps').createClient({
   Promise: Promise,
 });
 
+// updates the subscription activities on employee activity update
+const handleSupervisorUpdate = async locals => {
+  const { change } = locals;
+  const activityEmployeeDataNew = change.after.data();
+
+  // check for updated supervisors, delete old and new to all the employee's subscription activities
+  const supervisors = [
+    'First Supervisor',
+    'Second Supervisor',
+    'Third Supervisor',
+  ];
+  const toDelete = [];
+  const toAdd = [];
+  const activityEmployeeOldAttachment = change.before.data().attachment;
+  const activityEmployeeNewAttachment = activityEmployeeDataNew.attachment;
+
+  supervisors.forEach(supervisor => {
+    const oldNumber = activityEmployeeOldAttachment[supervisor].value;
+    const newNumber = activityEmployeeNewAttachment[supervisor].value;
+    if (oldNumber === newNumber) return;
+    if (oldNumber !== '' && newNumber === '') {
+      toDelete.push(oldNumber);
+    }
+    if (oldNumber === '' && newNumber !== '') {
+      toAdd.push(newNumber);
+    }
+    if (oldNumber !== '' && newNumber !== '') {
+      toDelete.push(oldNumber);
+      toAdd.push(newNumber);
+    }
+  });
+
+  // nothing to update, exit
+  if (toDelete.length === 0 && toAdd.length === 0) return;
+
+  // initiate a batch
+  const batch = db.batch();
+
+  // get all CONFIRMED subscriptions
+  const { docs: subscriptionDocs } = await rootCollections.activities
+    .where('officeId', '==', activityEmployeeDataNew.officeId)
+    .where('template', '==', 'subscription')
+    .where('status', '==', 'CONFIRMED')
+    .where(
+      'attachment.Phone Number.value',
+      '==',
+      activityEmployeeDataNew.attachment['Phone Number'].value,
+    )
+    // dont need to update check in subscription only
+    // .where('attachment.Template.value', '==', 'check-in')
+    .get();
+
+  // filter out numbers uniquely
+  const oldNumbers = [...new Set(toDelete)].filter(Boolean);
+  const newNumbers = [...new Set(toAdd)].filter(Boolean);
+
+  // update timestamp to force migration of this to profiles collection
+  const updateTimeStamp = (batch, subscriptionDoc) => {
+    batch.set(subscriptionDoc.ref, { timestamp: Date.now() }, { merge: true });
+  };
+
+  subscriptionDocs.forEach(subscriptionDoc => {
+    // to prevent double timestamp update for scalability
+    let isTimestampUpdated = false;
+    oldNumbers.forEach(oldNumber => {
+      isTimestampUpdated = true;
+      updateTimeStamp(batch, subscriptionDoc);
+      batch.delete(
+        subscriptionDoc.ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(oldNumber),
+      );
+    });
+    newNumbers.forEach(newNumber => {
+      if (!isTimestampUpdated) updateTimeStamp(batch, subscriptionDoc);
+      batch.set(
+        subscriptionDoc.ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(newNumber),
+        { addToInclude: true },
+        { merge: true },
+      );
+    });
+  });
+
+  await batch.commit();
+};
+
 const getActivityObjectWithMetadata = doc =>
   Object.assign({}, doc.data(), {
     addendumDocRef: null,
@@ -186,12 +274,12 @@ const getActivityReportName = async ({ report, template }) => {
     return report;
   }
 
-  const [templateDoc] = (
-    await rootCollections.activityTemplates
-      .where('name', '==', template)
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [templateDoc],
+  } = await rootCollections.activityTemplates
+    .where('name', '==', template)
+    .limit(1)
+    .get();
 
   // Some old activities are present with templates
   // which have been deleted. Eg. expense-type.
@@ -894,7 +982,9 @@ const handleConfig = async locals => {
   const { value: newActivityPhoneNumber } =
     locals.change.after.get('attachment.Phone Number') || {};
   const [venue] = locals.change.after.get('venue');
-  const employeeOf = { [office]: officeId };
+  const employeeOf = {
+    [office]: officeId,
+  };
 
   /**
    * check-in, recipient, and office don't have attachment.Phone Number
@@ -1780,15 +1870,15 @@ const handleUnpopulatedVenue = async ({ addendumDoc }) => {
   const distanceTolerance = getAccuracyTolerance(geopointAccuracy);
   const adjGP = adjustedGeopoint(currentGeopoint);
 
-  const [queriedActivity] = (
-    await rootCollections.activities
-      .where('officeId', '==', officeId)
-      // Branch, and customer
-      .where('adjustedGeopoints', '==', `${adjGP.latitude},${adjGP.longitude}`)
-      .where('status', '==', 'CONFIRMED')
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [queriedActivity],
+  } = await rootCollections.activities
+    .where('officeId', '==', officeId)
+    // Branch, and customer
+    .where('adjustedGeopoints', '==', `${adjGP.latitude},${adjGP.longitude}`)
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get();
 
   // { isAccurate: false, venueQuery: null };
   if (!queriedActivity) {
@@ -1952,8 +2042,6 @@ const handleAddendum = async locals => {
   if (!currentGeopoint) {
     return;
   }
-
-  console.log({ currentGeopoint });
 
   const batch = db.batch();
   const promises = [];
@@ -2160,7 +2248,12 @@ const handleMetaUpdate = async locals => {
 
     batchArray[batchIndex].set(
       doc.ref,
-      { addendumDocRef: null, attachment: { [field]: { value } } },
+      {
+        addendumDocRef: null,
+        attachment: {
+          [field]: { value },
+        },
+      },
       { merge: true },
     );
   });
@@ -3170,8 +3263,12 @@ const reimburseKmAllowance = async locals => {
     const amountThisTime = currencyJs(kmRate)
       .multiply(locals.addendumDocData.distanceTravelled)
       .toString();
-    const [oldReimbursementDoc] = previousKmReimbursementQuery.docs;
-    const [oldUpdatesDoc] = previousReimbursementUpdateQuery.docs;
+    const {
+      docs: [oldReimbursementDoc],
+    } = previousKmReimbursementQuery;
+    const {
+      docs: [oldUpdatesDoc],
+    } = previousReimbursementUpdateQuery;
     const r1 = rootCollections.offices
       .doc(officeId)
       .collection(subcollectionNames.REIMBURSEMENTS)
@@ -4487,6 +4584,16 @@ const activityOnWrite = async change => {
    * any order (mostly).
    */
   const locals = await handleProfile(change);
+
+  /*
+    @see BugFix
+    This function checks for updated phone numbers except employee's phone number and then
+    triggers the same change in subscription activities of the employee
+  */
+  if (change.before.data() && change.after.data().template === 'employee') {
+    await handleSupervisorUpdate(locals);
+  }
+
   await handleAddendum(locals);
 
   await templateHandler(locals);
