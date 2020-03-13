@@ -398,7 +398,7 @@ const getPlaceInformation = (mapsApiResult, geopoint) => {
   }
 
   return {
-    identifier: firstResult['formatted_address'],
+    identifier: firstResult.formatted_address,
     url: getLocationUrl(globalCode),
   };
 };

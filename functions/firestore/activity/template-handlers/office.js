@@ -123,9 +123,9 @@ const getFullBranchActivity = async placeid => {
 
   const branchName = getBranchName(addressComponents);
   const branchOffice = {
-    placeId: result.json.result['place_id'],
+    placeId: result.json.result.place_id,
     venueDescriptor: 'Branch Office',
-    address: result.json.result['formatted_address'],
+    address: result.json.result.formatted_address,
     location: branchName,
     geopoint: new admin.firestore.GeoPoint(
       result.json.result.geometry.location.lat,
@@ -134,13 +134,13 @@ const getFullBranchActivity = async placeid => {
   };
 
   const weekdayStartTime = (() => {
-    const openingHours = result.json.result['opening_hours'];
+    const openingHours = result.json.result.opening_hours;
 
     if (!openingHours) {
       return '';
     }
 
-    const periods = openingHours.periods;
+    const { periods } = openingHours;
 
     const [relevantObject] = periods.filter(item => {
       return item.close && item.close.day === 1;
@@ -154,7 +154,7 @@ const getFullBranchActivity = async placeid => {
   })();
 
   const weekdayEndTime = (() => {
-    const openingHours = result.json.result['opening_hours'];
+    const openingHours = result.json.result.opening_hours;
 
     if (!openingHours) {
       return '';
@@ -172,7 +172,7 @@ const getFullBranchActivity = async placeid => {
   })();
 
   const saturdayStartTime = (() => {
-    const openingHours = result.json.result['opening_hours'];
+    const openingHours = result.json.result.opening_hours;
 
     if (!openingHours) {
       return '';
@@ -190,7 +190,7 @@ const getFullBranchActivity = async placeid => {
   })();
 
   const saturdayEndTime = (() => {
-    const openingHours = result.json.result['opening_hours'];
+    const openingHours = result.json.result.opening_hours;
 
     if (!openingHours) {
       return '';
@@ -208,13 +208,13 @@ const getFullBranchActivity = async placeid => {
   })();
 
   const weeklyOff = (() => {
-    const openingHours = result.json.result['opening_hours'];
+    const openingHours = result.json.result.opening_hours;
 
     if (!openingHours) {
       return '';
     }
 
-    const weekdayText = openingHours['weekday_text'];
+    const weekdayText = openingHours.weekday_text;
 
     if (!weekdayText) {
       return '';

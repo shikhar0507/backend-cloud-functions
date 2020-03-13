@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {rootCollections, db, getGeopointObject} = require('../admin/admin');
+const { rootCollections, db, getGeopointObject } = require('../admin/admin');
 const admin = require('firebase-admin');
 const XLSX = require('xlsx');
 const {
@@ -49,7 +49,7 @@ const {
   timezonesSet,
   reportNames,
 } = require('../admin/constants');
-const {alphabetsArray} = require('../firestore/recipients/report-utils');
+const { alphabetsArray } = require('../firestore/recipients/report-utils');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
@@ -73,7 +73,7 @@ const templateNamesObject = {
 };
 
 const getOrderedFields = templateDoc => {
-  const {venue, schedule, attachment} = templateDoc.data();
+  const { venue, schedule, attachment } = templateDoc.data();
 
   return [].concat(venue, schedule, Object.keys(attachment)).sort();
 };
@@ -116,11 +116,11 @@ const addressToCustomer = async queryObject => {
 
     activityObject.latitude = firstResult.geometry.location.lat;
     activityObject.longitude = firstResult.geometry.location.lng;
-    activityObject.placeId = firstResult['place_id'];
+    activityObject.placeId = firstResult.place_id;
 
     const placeApiResult = await googleMapsClient
       .place({
-        placeid: firstResult['place_id'],
+        placeid: firstResult.place_id,
       })
       .asPromise();
 
@@ -131,7 +131,7 @@ const addressToCustomer = async queryObject => {
     activityObject.location = activityObject.Name;
 
     const weekdayStartTime = (() => {
-      const openingHours = placeApiResult.json.result['opening_hours'];
+      const openingHours = placeApiResult.json.result.opening_hours;
 
       if (!openingHours) return '';
 
@@ -146,7 +146,7 @@ const addressToCustomer = async queryObject => {
     })();
 
     const weekdayEndTime = (() => {
-      const openingHours = placeApiResult.json.result['opening_hours'];
+      const openingHours = placeApiResult.json.result.opening_hours;
 
       if (!openingHours) return '';
 
@@ -161,11 +161,11 @@ const addressToCustomer = async queryObject => {
     })();
 
     const weeklyOff = (() => {
-      const openingHours = placeApiResult.json.result['opening_hours'];
+      const openingHours = placeApiResult.json.result.opening_hours;
 
       if (!openingHours) return '';
 
-      const weekdayText = openingHours['weekday_text'];
+      const weekdayText = openingHours.weekday_text;
 
       if (!weekdayText) return '';
 
@@ -305,7 +305,7 @@ const generateExcel = async locals => {
   return sgMail.sendMultiple(messageObject);
 };
 
-const isOnLeave = async ({startTime, endTime, officeId, phoneNumber}) => {
+const isOnLeave = async ({ startTime, endTime, officeId, phoneNumber }) => {
   const leaveDates = [];
   const rangeStart = momentTz(startTime).startOf('date');
   const rangeEnd = momentTz(endTime).endOf('date');
@@ -332,7 +332,7 @@ const isOnLeave = async ({startTime, endTime, officeId, phoneNumber}) => {
   attendanceActivitySnaps.forEach(snap => {
     // could be leave/ar
     snap.forEach(attendanceActivity => {
-      const {status, scheduleDates} = attendanceActivity.data();
+      const { status, scheduleDates } = attendanceActivity.data();
 
       if (status === 'CANCELLED') {
         return;
@@ -896,7 +896,7 @@ const handleSubscriptions = async locals => {
   const promises = [];
 
   locals.subscriptionsToCheck.forEach(item => {
-    const {phoneNumber, template} = item;
+    const { phoneNumber, template } = item;
 
     promises.push(
       rootCollections.activities
@@ -1022,7 +1022,7 @@ const fetchValidTypes = async locals => {
   const queryMap = new Map();
 
   locals.verifyValidTypes.forEach((item, index) => {
-    const {value, type} = item;
+    const { value, type } = item;
 
     queryMap.set(index, value);
 
@@ -1218,7 +1218,7 @@ const validateDataArray = async locals => {
     }
 
     if (locals.templateDoc.get('name') === templateNamesObject.RECIPIENT) {
-      const {Name: reportName} = locals.inputObjects[index];
+      const { Name: reportName } = locals.inputObjects[index];
       const validReports = new Set([
         reportNames.FOOTPRINTS,
         reportNames.PAYROLL,
@@ -1367,7 +1367,7 @@ const validateDataArray = async locals => {
       }
 
       if (attachmentFieldsSet.has(property)) {
-        const {type} = locals.templateDoc.get('attachment')[property];
+        const { type } = locals.templateDoc.get('attachment')[property];
 
         if (!validTypes.has(type) && value) {
           // Used for querying activities which should exist on the
@@ -1653,11 +1653,11 @@ const getBranchActivity = async address => {
 
   activityObject.latitude = firstResult.geometry.location.lat;
   activityObject.longitude = firstResult.geometry.location.lng;
-  activityObject.placeId = firstResult['place_id'];
+  activityObject.placeId = firstResult.place_id;
 
   const placeApiResult = await googleMapsClient
     .place({
-      placeid: firstResult['place_id'],
+      placeid: firstResult.place_id,
     })
     .asPromise();
 
@@ -1666,7 +1666,7 @@ const getBranchActivity = async address => {
   activityObject.location = name;
 
   activityObject['Weekday Start Time'] = (() => {
-    const openingHours = placeApiResult.json.result['opening_hours'];
+    const openingHours = placeApiResult.json.result.opening_hours;
 
     if (!openingHours) return '';
 
@@ -1682,7 +1682,7 @@ const getBranchActivity = async address => {
   })();
 
   activityObject['Weekday End Time'] = (() => {
-    const openingHours = placeApiResult.json.result['opening_hours'];
+    const openingHours = placeApiResult.json.result.opening_hours;
 
     if (!openingHours) return '';
 
@@ -1698,7 +1698,7 @@ const getBranchActivity = async address => {
   })();
 
   activityObject['Saturday Start Time'] = (() => {
-    const openingHours = placeApiResult.json.result['opening_hours'];
+    const openingHours = placeApiResult.json.result.opening_hours;
 
     if (!openingHours) return '';
 
@@ -1714,7 +1714,7 @@ const getBranchActivity = async address => {
   })();
 
   activityObject['Saturday End Time'] = (() => {
-    const openingHours = placeApiResult.json.result['opening_hours'];
+    const openingHours = placeApiResult.json.result.opening_hours;
 
     if (!openingHours) return '';
 
@@ -1730,11 +1730,11 @@ const getBranchActivity = async address => {
   })();
 
   activityObject['Weekly Off'] = (() => {
-    const openingHours = placeApiResult.json.result['opening_hours'];
+    const openingHours = placeApiResult.json.result.opening_hours;
 
     if (!openingHours) return '';
 
-    const weekdayText = openingHours['weekday_text'];
+    const weekdayText = openingHours.weekday_text;
 
     if (!weekdayText) return '';
 
@@ -1779,7 +1779,7 @@ const handleBranch = async locals => {
   const branches = await Promise.all(promises);
 
   branches.forEach(branch => {
-    const {address} = branch;
+    const { address } = branch;
     const index = addressMap.get(address);
 
     locals.inputObjects[index] = branch;
@@ -2014,7 +2014,7 @@ const handleDuty = async locals => {
   const leavePromisesResult = await Promise.all(leavePromises);
 
   leavePromisesResult.forEach(item => {
-    const {leaveDates, phoneNumber} = item;
+    const { leaveDates, phoneNumber } = item;
 
     const indexes = phoneNumberIndexMap.get(phoneNumber) || [];
 
@@ -2049,7 +2049,7 @@ const handleDuty = async locals => {
   const usersWithAuth = new Set();
 
   userRecords.forEach(userRecord => {
-    const {uid, phoneNumber} = userRecord;
+    const { uid, phoneNumber } = userRecord;
 
     if (uid) {
       usersWithAuth.add(phoneNumber);
@@ -2220,7 +2220,7 @@ const bulkCreateOnFinalize = async object => {
         return;
       }
 
-      const {type} =
+      const { type } =
         locals.templateDoc.get(`attachment.${fieldName}.type`) || {};
 
       // for type boolean, if not set => set default as false;

@@ -134,7 +134,7 @@ const getCustomerVenue = ({ templateDoc, firstResult, placeApiResult }) => {
       result.geopoint.latitude = firstResult.geometry.location.lat;
       result.geopoint.longitude = firstResult.geometry.location.lng;
       result.address = placeApiResult.json.result.formatted_address;
-      result.placeId = firstResult['place_id'];
+      result.placeId = firstResult.place_id;
     }
 
     return result;
@@ -179,7 +179,7 @@ const getWeeklyOffFromPlaces = ({ placeApiResult }) => {
     return '';
   }
 
-  const weekdayText = openingHours['weekday_text'];
+  const weekdayText = openingHours.weekday_text;
 
   if (!weekdayText) {
     return '';
@@ -257,7 +257,7 @@ const getCustomerObject = async ({ address, location }) => {
 
     const placeApiResult = await googleMapsClient
       .place({
-        placeid: firstResult['place_id'],
+        placeid: firstResult.place_id,
       })
       .asPromise();
     const [templateDoc] = (
@@ -268,7 +268,7 @@ const getCustomerObject = async ({ address, location }) => {
     ).docs;
 
     const activityObject = {
-      placeId: firstResult['place_id'],
+      placeId: firstResult.place_id,
       schedule: getCustomerSchedule({
         templateDoc,
         firstResult,
