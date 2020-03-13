@@ -83,6 +83,7 @@ const vars = {
   cashFreeToken: '',
   fbVerificationToken: '',
   growthifleMsToken: '',
+  msActivityUrl: '',
 };
 
 module.exports = vars;
