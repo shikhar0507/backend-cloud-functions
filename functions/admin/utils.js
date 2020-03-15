@@ -1597,20 +1597,23 @@ const maskLastDigits = (
   );
 };
 
-const growthfileMsRequester = async ({ payload, method, resourcePath }) => {
+const growthfileMsRequester = async ({
+  payload: body,
+  method,
+  resourcePath,
+}) => {
   if (!env.isProduction) {
     return;
   }
 
   try {
-    // const uri = url.resolve(env.msActivityUrl, urlSuffix);
-    return rpn(url.resolve(env.msActivityUrl, resourcePath), {
+    return rpn(url.resolve(env.msActivityUrl, `api/${resourcePath}`), {
+      body,
+      method,
       json: true,
-      body: payload,
       headers: {
         Authorization: `Bearer ${env.growthfileMsToken}`,
       },
-      method: method,
     });
   } catch (error) {
     console.error(error);
