@@ -203,6 +203,7 @@ const reimbursementsReport = async locals => {
         currency,
         distance,
       } = doc.data();
+      const isKmAllowance = reimbursementType === 'km allowance';
       const formattedDate = momentTz()
         .date(date)
         .month(month)
@@ -243,8 +244,35 @@ const reimbursementsReport = async locals => {
       dataSheet.cell(`H${rowCounter}`).value(reimbursementType);
       dataSheet.cell(`I${rowCounter}`).value(reimbursementName);
       dataSheet.cell(`J${rowCounter}`).value(approvalDetails);
-      dataSheet.cell(`K${rowCounter}`).value('');
-      dataSheet.cell(`L${rowCounter}`).value('');
+
+      if (previousIdentifier && isKmAllowance) {
+        const url = toMapsUrl(previousGeopoint);
+        dataSheet
+          .cell(`K${rowCounter}`)
+          .value(previousIdentifier)
+          .style({
+            fontColor: '0563C1',
+            underline: true,
+          })
+          .hyperlink(url);
+      } else {
+        dataSheet.cell(`K${rowCounter}`).value('');
+      }
+
+      if (currentIdentifier && isKmAllowance) {
+        const url = toMapsUrl(currentGeopoint);
+        dataSheet
+          .cell(`L${rowCounter}`)
+          .value(currentIdentifier)
+          .style({
+            fontColor: '0563C1',
+            underline: true,
+          })
+          .hyperlink(url);
+      } else {
+        dataSheet.cell(`L${rowCounter}`).value('');
+      }
+
       dataSheet.cell(`M${rowCounter}`).value(`${amount} ${currency}`);
       dataSheet.cell(`N${rowCounter}`).value(distance || '');
 
