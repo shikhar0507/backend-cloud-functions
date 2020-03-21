@@ -69,7 +69,6 @@ const templateNamesObject = {
   DUTY: 'duty',
   CUSTOMER: 'customer',
   BRANCH: 'branch',
-  KM_ALLOWANCE: 'km allowance',
 };
 
 const getOrderedFields = templateDoc => {
