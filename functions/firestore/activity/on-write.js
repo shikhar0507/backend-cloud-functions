@@ -2158,6 +2158,8 @@ const handleAddendum = async locals => {
   // Required for comment creation since the addendumDoc.data() won't contain
   // the updates made during this function instance
   locals.addendumDocData = Object.assign({}, addendumDoc.data(), updateObject);
+  // Used in reimburseKmAllowance function for getting the previous location
+  locals.previousAddendumDoc = previousAddendumDoc;
 
   /**
    * Seperating this part out because handling even a single crash
@@ -2997,6 +2999,442 @@ const getLatLngObject = ({ latLngObject }) => ({
   latitude: latLngObject.latitude || latLngObject._latitude,
   longitude: latLngObject.longitude || latLngObject._longitude,
 });
+
+const reimburseKmAllowance = async locals => {
+  // if action is create, checkin - then look
+  // for scheduled only false in
+  // employee object and make km allowance if available
+  // basis same logic of previous checkin is same
+  // date then km allowance
+  // between the two else km allowance from
+  // startpoint/base location to both
+
+  // if action is checkin - then look for scheduled
+  // only true in employee and make km allowance
+  // if available basis same logic of previous
+  // action == checkin, same date then km
+  // allowance between the two else km allowance
+  // from start point/base location from both
+
+  if (!locals.addendumDocData) {
+    return;
+  }
+
+  // Support/admin requests are not eligible for reimbursements
+  if (
+    locals.addendumDocData.isSupportRequest ||
+    locals.addendumDocData.isAdminRequest
+  ) {
+    return;
+  }
+
+  const { template, office, officeId, timezone } = locals.change.after.data();
+  const { timestamp } = locals.addendumDocData;
+  let uid = locals.addendumDocData.uid;
+
+  // Doing this because action=check-in can show up with
+  // non-check-in template activities too.
+  const phoneNumber = (() => {
+    if (template === 'check-in') {
+      return locals.change.after.get('creator.phoneNumber');
+    }
+
+    return locals.addendumDocData.user;
+  })();
+
+  if (!uid) {
+    uid = (await getAuth(phoneNumber)).uid;
+  }
+
+  const roleDoc = locals.roleObject;
+
+  // Not an employee, km allowance is skipped
+  if (!roleDoc) {
+    return;
+  }
+
+  /**
+   * Role might not have KM Rate since that field is currently in 'employee' activities
+   */
+  const { value: kmRate } = roleDoc.attachment['KM Rate'] || {};
+  const { value: startPointLatitude } =
+    roleDoc.attachment['Start Point Latitude'] || {};
+  const { value: startPointLongitude } =
+    roleDoc.attachment['Start Point Longitude'] || {};
+  const { value: scheduledOnly } = roleDoc.attachment['Scheduled Only'] || {};
+
+  // Scheduled Only means action === check-in. Exit otherwise
+  if (scheduledOnly && locals.addendumDocData.action !== httpsActions.checkIn) {
+    return;
+  }
+
+  if (!kmRate) {
+    return;
+  }
+
+  const roleData = {
+    phoneNumber,
+    employeeName: roleDoc.attachment.Name.value,
+    employeeCode: roleDoc.attachment['Employee Code'].value,
+    baseLocation: roleDoc.attachment['Base Location'].value,
+    region: roleDoc.attachment.Region.value,
+    department: roleDoc.attachment.Department.value,
+    minimumDailyActivityCount:
+      roleDoc.attachment['Minimum Daily Activity Count'].value,
+    minimumWorkingHours: roleDoc.attachment['Minimum Working Hours'].value,
+  };
+
+  const batch = db.batch();
+  const reimbursementType = 'km allowance';
+  const momentNow = momentTz(timestamp).tz(timezone);
+  const date = momentNow.date();
+  const month = momentNow.month();
+  const year = momentNow.year();
+  const commonReimObject = Object.assign(
+    {},
+    {
+      date,
+      month,
+      year,
+      office,
+      uid,
+      officeId,
+      phoneNumber,
+      reimbursementType,
+      currency: 'INR',
+      timestamp: Date.now(),
+      relevantActivityId: locals.change.after.id,
+      employeeName: roleDoc.attachment.Name.value,
+    },
+  );
+
+  const [
+    previousKmReimbursementQuery,
+    previousReimbursementUpdateQuery,
+  ] = await Promise.all([
+    rootCollections.offices
+      .doc(officeId)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .where('intermediate', '==', true)
+      .where('date', '==', date)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .where('reimbursementType', '==', reimbursementType)
+      .where('phoneNumber', '==', phoneNumber)
+      .limit(1)
+      .get(),
+    rootCollections.updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .where('_type', '==', addendumTypes.REIMBURSEMENT)
+      .where('intermediate', '==', true)
+      .where('date', '==', date)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .where('reimbursementType', '==', reimbursementType)
+      .limit(1)
+      .get(),
+  ]);
+
+  const startPointDetails = await getStartPointObject({
+    officeId,
+    startPointLatitude,
+    startPointLongitude,
+    baseLocation: roleData.baseLocation,
+  });
+
+  if (!startPointDetails) {
+    return;
+  }
+
+  const distanceBetweenCurrentAndStartPoint = await getDistanceFromDistanceMatrix(
+    startPointDetails.geopoint,
+    locals.addendumDocData.location,
+  );
+
+  if (distanceBetweenCurrentAndStartPoint < 1) {
+    return;
+  }
+
+  /**
+   * This function should be refactored. But I'm short on time.
+   * Also don't want to touch it since it might break stuff.
+   */
+  if (previousKmReimbursementQuery.empty) {
+    // create km allowance for start point to current location
+    // create km allowance for current location to start point.
+    const firstReimbursementRef = rootCollections.offices
+      .doc(officeId)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .doc();
+    const secondReimbursementRef = rootCollections.offices
+      .doc(officeId)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .doc();
+    const firstReimbursementUpdateRef = rootCollections.updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc();
+    const secondReimbursementUpdateRef = rootCollections.updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc();
+
+    /**
+     * Amount earned for travelling between start point
+     * to the current location.
+     */
+    const amountEarned = currencyJs(kmRate).multiply(
+      distanceBetweenCurrentAndStartPoint,
+    );
+
+    const amountEarnedInString = amountEarned.toString();
+
+    // startPoint (previous) to current location(current)
+    batch.set(
+      firstReimbursementRef,
+      Object.assign({}, roleData, commonReimObject, {
+        amount: amountEarnedInString,
+        distance: distanceBetweenCurrentAndStartPoint,
+        previousIdentifier: startPointDetails.identifier,
+        previousGeopoint: startPointDetails.geopoint,
+        currentIdentifier: (() => {
+          if (locals.addendumDocData.venueQuery) {
+            return locals.addendumDocData.venueQuery.location;
+          }
+
+          return locals.addendumDocData.identifier;
+        })(),
+        currentGeopoint: getLatLngObject({
+          latLngObject: locals.addendumDocData.location,
+        }),
+        intermediate: false,
+      }),
+      { merge: true },
+    );
+
+    // current location to start point
+    batch.set(
+      secondReimbursementRef,
+      Object.assign({}, commonReimObject, {
+        rate: kmRate,
+        previousIdentifier: (() => {
+          if (locals.addendumDocData.venueQuery) {
+            return locals.addendumDocData.venueQuery.location;
+          }
+
+          return locals.addendumDocData.identifier;
+        })(),
+        previousGeopoint: getLatLngObject({
+          latLngObject: locals.addendumDocData.location,
+        }),
+        currentIdentifier: startPointDetails.identifier,
+        currentGeopoint: startPointDetails.geopoint,
+        intermediate: true,
+        amount: amountEarnedInString,
+        distance: distanceBetweenCurrentAndStartPoint,
+      }),
+    );
+
+    // start point to current location
+    batch.set(
+      firstReimbursementUpdateRef,
+      Object.assign({}, commonReimObject, {
+        amount: amountEarnedInString,
+        _type: addendumTypes.REIMBURSEMENT,
+        id: `${date}${month}${year}${firstReimbursementRef.id}`,
+        key: momentNow
+          .clone()
+          .startOf('day')
+          .valueOf(),
+        reimbursementName: null,
+        details: {
+          rate: kmRate,
+          startLocation: startPointDetails.geopoint,
+          checkInTimestamp: locals.change.after.get('timestamp'),
+          endLocation: getLatLngObject({
+            latLngObject: locals.addendumDocData.location,
+          }),
+          distanceTravelled: distanceBetweenCurrentAndStartPoint,
+          photoURL: null,
+          status: null,
+          claimId: null,
+        },
+      }),
+    );
+
+    // curr to start point
+    batch.set(
+      secondReimbursementUpdateRef,
+      Object.assign({}, commonReimObject, {
+        _type: addendumTypes.REIMBURSEMENT,
+        amount: amountEarnedInString,
+        id: `${date}${month}${year}${secondReimbursementRef.id}`,
+        key: momentNow
+          .clone()
+          .startOf('day')
+          .valueOf(),
+        reimbursementName: null,
+        intermediate: true,
+        details: {
+          rate: kmRate,
+          startLocation: getLatLngObject({
+            latLngObject: locals.addendumDocData.location,
+          }),
+          checkInTimestamp: locals.change.after.get('timestamp'),
+          endLocation: startPointDetails.geopoint,
+          distanceTravelled: distanceBetweenCurrentAndStartPoint,
+          photoURL: null,
+          status: null,
+          claimId: null,
+        },
+      }),
+    );
+  } else {
+    if (locals.addendumDocData.distanceTravelled < 1) {
+      return;
+    }
+
+    const amountThisTime = currencyJs(kmRate)
+      .multiply(locals.addendumDocData.distanceTravelled)
+      .toString();
+    const {
+      docs: [oldReimbursementDoc],
+    } = previousKmReimbursementQuery;
+    const {
+      docs: [oldUpdatesDoc],
+    } = previousReimbursementUpdateQuery;
+    const r1 = rootCollections.offices
+      .doc(officeId)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .doc();
+    const u1 = rootCollections.updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc();
+
+    // r2
+    batch.set(
+      oldReimbursementDoc.ref,
+      Object.assign({}, roleData, commonReimObject, {
+        rate: kmRate,
+        amount: amountThisTime,
+        intermediate: false,
+        currentIdentifier: (() => {
+          if (locals.addendumDocData.venueQuery) {
+            return locals.addendumDocData.venueQuery.location;
+          }
+
+          return locals.addendumDocData.identifier;
+        })(),
+        currentGeopoint: getLatLngObject({
+          latLngObject: locals.addendumDocData.location,
+        }),
+      }),
+      { merge: true },
+    );
+
+    const oldUpdatesRef = (() => {
+      if (oldUpdatesDoc) {
+        return oldUpdatesDoc.ref;
+      }
+
+      return rootCollections.updates
+        .doc(uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .doc();
+    })();
+
+    batch.set(
+      oldUpdatesRef,
+      Object.assign({}, commonReimObject, {
+        date,
+        month,
+        year,
+        id: `${date}${month}${year}${oldReimbursementDoc.id}`,
+        key: momentTz()
+          .date(date)
+          .month(month)
+          .year(year)
+          .startOf('date')
+          .valueOf(),
+        amount: amountThisTime,
+        _type: addendumTypes.REIMBURSEMENT,
+        reimbursementName: null,
+        intermediate: false,
+        details: {
+          rate: kmRate,
+          startLocation: oldReimbursementDoc.get('previousGeopoint'),
+          distanceTravelled: locals.addendumDocData.distanceTravelled,
+          photoURL: null,
+          status: null,
+          claimId: null,
+          checkInTimestamp: timestamp,
+          endLocation: getLatLngObject({
+            latLngObject: locals.addendumDocData.location,
+          }),
+        },
+      }),
+      { merge: true },
+    );
+
+    // currentLocation (start) to startPoint (end)
+    batch.set(
+      r1,
+      Object.assign({}, roleData, commonReimObject, {
+        // cumulativeAmount,
+        rate: kmRate,
+        amount: amountThisTime,
+        currentIdentifier: startPointDetails.identifier,
+        currentGeopoint: startPointDetails.geopoint,
+        previousIdentifier: (() => {
+          if (locals.addendumDocData.venueQuery) {
+            return locals.addendumDocData.venueQuery.location;
+          }
+
+          return locals.addendumDocData.identifier;
+        })(),
+        previousGeopoint: getLatLngObject({
+          latLngObject: locals.addendumDocData.location,
+        }),
+        intermediate: true,
+      }),
+      { merge: true },
+    );
+
+    // currentLocation (start) to startPoint (end)
+    batch.set(
+      u1,
+      Object.assign({}, commonReimObject, {
+        _type: addendumTypes.REIMBURSEMENT,
+        amount: amountThisTime,
+        id: `${date}${month}${year}${r1.id}`,
+        key: momentTz()
+          .date(date)
+          .month(month)
+          .year(year)
+          .startOf('date')
+          .valueOf(),
+        reimbursementName: null,
+        intermediate: true,
+        details: {
+          rate: kmRate,
+          startLocation: getLatLngObject({
+            latLngObject: locals.addendumDocData.location,
+          }),
+          checkInTimestamp: locals.change.after.get('timestamp'),
+          endLocation: startPointDetails.geopoint,
+          distanceTravelled: distanceBetweenCurrentAndStartPoint,
+          photoURL: null,
+          status: null,
+          claimId: null,
+        },
+      }),
+    );
+  }
+
+  return batch.commit();
+};
 
 const handleReimbursement = async locals => {
   if (!locals.addendumDocData) {
@@ -3950,6 +4388,7 @@ const templateHandler = async locals => {
 
   if (template === 'check-in' || action === httpsActions.checkIn) {
     await reimburseDailyAllowance(locals);
+    await reimburseKmAllowance(locals);
 
     return handleWorkday(locals);
   }
