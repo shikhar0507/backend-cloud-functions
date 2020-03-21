@@ -82,13 +82,6 @@ const getComment = doc => {
   }
 
   if (action === httpsActions.create) {
-    if (doc.get('activityData.template') === 'enquiry') {
-      return (
-        `${doc.get('activityData.attachment.Product.value')}` +
-        ` ${doc.get('activityData.attachment.Enquiry.value')}`
-      );
-    }
-
     return `Created ${doc.get('activityData.template')}`;
   }
 
