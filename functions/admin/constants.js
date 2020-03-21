@@ -200,7 +200,6 @@ const templatesSet = new Set()
   .add('supplier-type')
   .add('supplier')
   .add('tour plan')
-  .add('enquiry')
   .add('material')
   .add('bill')
   .add('invoice')
@@ -828,7 +827,6 @@ const reportNames = {
   COUNTER: 'counter',
   CUSTOMER: 'customer',
   ACTIVIT_REPORT: 'activity report',
-  ENQUIRY: 'enquiry',
   INSTALL: 'install',
   SIGNUP: 'signup',
   CHECK_IN: 'check-in',
