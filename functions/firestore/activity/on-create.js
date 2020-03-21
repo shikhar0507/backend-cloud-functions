@@ -1153,17 +1153,6 @@ const createLocals = async (
     subscriptionDoc,
   };
 
-  if (conn.req.body.template === 'enquiry') {
-    [
-      officeDoc.get('attachment.First Contact.value'),
-      officeDoc.get('attachment.Second Contact.value'),
-    ]
-      .filter(Boolean)
-      .forEach(phoneNumber => {
-        conn.req.body.share.push(phoneNumber);
-      });
-  }
-
   if (!conn.requester.isSupportRequest) {
     conn.req.body.share.push(conn.requester.phoneNumber);
   }
