@@ -23,7 +23,7 @@
 
 'use strict';
 
-const { db, rootCollections } = require('../../admin/admin');
+const { db, rootCollections, auth } = require('../../admin/admin');
 const {
   vowels,
   httpsActions,
@@ -4382,6 +4382,98 @@ const attendanceHandler = async locals => {
   return batch.commit();
 };
 
+/**
+ * Handle templates with role parameter
+ * @param locals
+ * @return {Promise<null|void>}
+ */
+const handleRoleDoc = async locals => {
+  const batch = db.batch();
+  const change = locals.change;
+  const { id: activityId } = locals.change.after;
+  const activityNewData = change.after.data();
+  const { role, status, template } = activityNewData;
+  if (role !== 'report') return null;
+  if (status === 'CONFIRMED') {
+    if (template === 'admin') {
+      // if admin was confirmed or created , add to his custom claims
+      const userRecord = await auth.getUserByPhoneNumber(
+        activityNewData.attachment['Phone Number'].value,
+      );
+      const customClaims = Object.assign({}, userRecord.customClaims);
+      const adminClaims = new Set(customClaims.admin).add(
+        activityNewData.office,
+      );
+      customClaims.admin = Array.from(adminClaims);
+      return auth.setCustomUserClaims(userRecord.uid, customClaims);
+    } else if (template === 'employee') {
+      // if employee is CONFIRMED, add him to roleReferences
+      batch.set(
+        rootCollections.profiles.doc(activityNewData.creator.phoneNumber),
+        {
+          roleReferences: {
+            [activityNewData.office]: activityNewData,
+          },
+        },
+        {
+          merge: true,
+        },
+      );
+    } else if (template === 'subscription') {
+      // create his subscription under /profiles/{}/sub-collection_subscription/
+      batch.set(
+        rootCollections.profiles
+          .doc(activityNewData.creator.phoneNumber)
+          .collection(subcollectionNames.SUBSCRIPTIONS)
+          .doc(activityId),
+        activityNewData,
+        { merge: true },
+      );
+    }
+  } else {
+    if (status === 'CANCELLED') {
+      if (template === 'admin') {
+        // if admin is cancelled, remove from custom claims
+        const userRecord = await auth.getUserByPhoneNumber(
+          activityNewData.attachment['Phone Number'].value,
+        );
+        const customClaims = Object.assign({}, userRecord.customClaims);
+        const adminClaimsSet = new Set(customClaims.admin);
+        adminClaimsSet.delete(activityNewData.office);
+        customClaims.admin = Array.from(adminClaimsSet);
+        return auth.setCustomUserClaims(userRecord.uid, customClaims);
+      } else if (template === 'employee') {
+        // if employee is cancelled, remove his roledoc from roleReferences
+        batch.set(
+          rootCollections.profiles.doc(activityNewData.creator.phoneNumber),
+          {
+            roleReferences: {
+              [activityNewData.office]: admin.firestore.FieldValue.delete(),
+            },
+          },
+          {
+            merge: true,
+          },
+        );
+      } else if (template === 'subscription') {
+        // if his subscription is cancelled, remove it from profiles as it creates burden on read api and is garbage
+        batch.delete(
+          rootCollections.profiles
+            .doc(activityNewData.creator.phoneNumber)
+            .collection(subcollectionNames.SUBSCRIPTIONS)
+            .doc(activityId),
+        );
+      }
+    }
+  }
+  try {
+    await batch.commit();
+  } catch (e) {
+    console.error(e);
+  }
+  return null;
+};
+
 const templateHandler = async locals => {
   const { template } = locals.change.after.data();
   const action = locals.addendumDocData ? locals.addendumDocData.action : null;
@@ -4414,6 +4506,9 @@ const templateHandler = async locals => {
     report: locals.change.after.get('report'),
   });
 
+  if (activityReportName === 'role') {
+    await handleRoleDoc(locals);
+  }
   if (activityReportName === 'attendance') {
     await attendanceHandler(locals);
   }
@@ -4615,9 +4710,6 @@ const activityOnWrite = async change => {
   if (!change.after.data()) {
     return;
   }
-  /**
-   * GrowthfileMS Integration
-   */
 
   /**
    * The sequence of handleAddendum and handleProfile matters for
