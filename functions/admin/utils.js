@@ -1607,7 +1607,7 @@ const growthfileMsRequester = async ({
   }
 
   try {
-    return rpn(url.resolve(env.msActivityUrl, `api/${resourcePath}`), {
+    await rpn(url.resolve(env.msActivityUrl, `api/${resourcePath}`), {
       body,
       method,
       json: true,
@@ -1616,8 +1616,15 @@ const growthfileMsRequester = async ({
       },
     });
   } catch (error) {
+    // log the request in case of errors
+    console.log({
+      url: url.resolve(env.msActivityUrl, `api/${resourcePath}`),
+      body,
+      Authorization: `Bearer ${env.growthfileMsToken}`,
+    });
     console.error(error);
   }
+  return null;
 };
 
 module.exports = {
