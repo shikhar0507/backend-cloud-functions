@@ -58,23 +58,6 @@ module.exports = conn => {
     return;
   }
 
-  if (action === 'update') {
-    if (conn.req.method !== 'PUT') {
-      sendResponse(
-        conn,
-        code.methodNotAllowed,
-        `${conn.req.method} is not allowed for /update. Use PUT.`,
-      );
-
-      return;
-    }
-
-    const onUpdate = require('../firestore/activity-templates/on-update');
-    onUpdate(conn);
-
-    return;
-  }
-
   if (action.startsWith('read')) {
     if (conn.req.method !== 'GET') {
       sendResponse(
