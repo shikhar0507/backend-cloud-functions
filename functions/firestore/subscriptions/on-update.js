@@ -24,87 +24,68 @@
 'use strict';
 
 const { rootCollections, db } = require('../../admin/admin');
-const { subcollectionNames, addendumTypes } = require('../../admin/constants');
 
-const pushUpdatedTemplates = async (query, templateDoc) => {
+const updateTimestampActivities = async (queryActivities, templateDoc) => {
   const { name: template } = templateDoc.data();
-  const authPromises = [];
-  const uidMap = new Map();
-  const templateUpdate = {
-    template,
-    _type: addendumTypes.SUBSCRIPTION,
-    schedule: templateDoc.get('schedule'),
-    venue: templateDoc.get('venue'),
-    attachment: templateDoc.get('attachment'),
-    report: templateDoc.get('report') || null,
-    /**
-     * Field timestamp is required in order for this
-     * doc to show up in the /read api query.
-     */
-    timestamp: Date.now(),
-  };
+
+  const MAX_DOCS_TO_FETCH = 500;
+
+  const activitiesQuery =
+    queryActivities ||
+    rootCollections.activities
+      .where('template', '==', template)
+      .orderBy('__name__')
+      .limit(MAX_DOCS_TO_FETCH);
+
+  const { docs } = await activitiesQuery.get();
+
+  const batch = db.batch();
+
+  docs.forEach(activity => {
+    batch.set(activity.ref, { timestamp: Date.now() }, { merge: true });
+  });
+
+  await batch.commit();
+
+  const lastDoc = docs.docs[docs.size - 1];
+
+  console.log('Docs found', docs.size);
+
+  if (!lastDoc) {
+    console.log('no last doc');
+
+    return;
+  }
+
+  console.log('Called again last', lastDoc.id);
+
+  const newQuery = activitiesQuery.startAfter(lastDoc);
+
+  return updateTimestampActivities(newQuery, templateDoc);
+};
+
+const updateTimestampSubscriptions = async (
+  querySubscriptions,
+  templateDoc,
+) => {
+  const { name: template } = templateDoc.data();
 
   const MAX_DOCS_TO_FETCH = 500;
 
   const subscriptionActivitiesQuery =
-    query ||
+    querySubscriptions ||
     rootCollections.activities
       .where('template', '==', 'subscription')
       .where('attachment.Template.value', '==', template)
       .orderBy('__name__')
       .limit(MAX_DOCS_TO_FETCH);
 
-  const docs = await subscriptionActivitiesQuery.get();
-
-  docs.forEach(subscription => {
-    authPromises.push(
-      rootCollections.updates
-        .where(
-          'phoneNumber',
-          '==',
-          subscription.get('attachment.Phone Number.value'),
-        )
-        .limit(1)
-        .get(),
-    );
-  });
-
-  const snapsFromUpdates = await Promise.all(authPromises);
-  snapsFromUpdates.forEach(snap => {
-    const [doc] = snap.docs;
-
-    if (!doc) {
-      return;
-    }
-
-    const { id: uid } = doc;
-    const { phoneNumber } = doc.data();
-
-    uidMap.set(phoneNumber, uid);
-  });
+  const { docs } = await subscriptionActivitiesQuery.get();
 
   const batch = db.batch();
 
   docs.forEach(subscription => {
-    const { office, status } = subscription.data();
-
-    const data = Object.assign({}, templateUpdate, {
-      office,
-      status,
-    });
-
-    const uid = uidMap.get(subscription.get('attachment.Phone Number.value'));
-
-    if (!uid) {
-      return;
-    }
-
-    const ref = rootCollections.updates
-      .doc(uid)
-      .collection(subcollectionNames.ADDENDUM)
-      .doc();
-
-    batch.set(ref, data);
+    batch.set(subscription.ref, { timestamp: Date.now() }, { merge: true });
   });
 
   await batch.commit();
@@ -123,7 +104,7 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
 
   const newQuery = subscriptionActivitiesQuery.startAfter(lastDoc);
 
-  return pushUpdatedTemplates(newQuery, templateDoc);
+  return updateTimestampSubscriptions(newQuery, templateDoc);
 };
 
 /**
@@ -151,7 +132,10 @@ module.exports = change => {
   const { after: templateDoc } = change;
 
   try {
-    return pushUpdatedTemplates(null, templateDoc);
+    return Promise.all([
+      updateTimestampSubscriptions(null, templateDoc),
+      updateTimestampActivities(null, templateDoc),
+    ]);
   } catch (error) {
     console.error(error);
   }
