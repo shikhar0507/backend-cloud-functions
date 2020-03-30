@@ -189,7 +189,7 @@ const getProfile = conn => {
 
       return Promise.all([batch.commit(), handleResource(conn)]);
     })
-    .catch(error => handleError(conn, error));
+    .catch(error => handleError(conn, error, ''));
 };
 
 const getUserAuthFromIdToken = async (conn, decodedIdToken) => {
@@ -246,7 +246,7 @@ const getUserAuthFromIdToken = async (conn, decodedIdToken) => {
  * Verifies the `id-token` form the Authorization header in the request.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
+ * @returns {Promise<void>}
  */
 const checkAuthorizationToken = async conn => {
   const result = headerValid(conn.req.headers);
@@ -304,7 +304,7 @@ const checkAuthorizationToken = async conn => {
  *
  * @param {Object} req Express Request object.
  * @param {Object} res Express Response object.
- * @returns {void}
+ * @returns {Promise<void>}
  */
 module.exports = async (req, res) => {
   const allowedMethods = [

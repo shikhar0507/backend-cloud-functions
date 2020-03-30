@@ -1377,6 +1377,8 @@ const getAuth = async phoneNumber => {
       displayName: '',
       emailVerified: false,
       disabled: false,
+      customClaims: {},
+      photoUrl: '',
     };
   });
 };

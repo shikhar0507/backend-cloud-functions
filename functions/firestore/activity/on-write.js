@@ -2128,7 +2128,9 @@ const handleAddendum = async locals => {
            * between A to B might not be the same as the legal
            * distance between B to A. So, do not mix the ordering.
            */
+          // @ts-ignore
           origins: getLatLngString(previousGeopoint),
+          // @ts-ignore
           destinations: getLatLngString(currentGeopoint),
           units: 'metric',
         })
@@ -3478,12 +3480,15 @@ const getLateStatus = ({ firstCheckInTimestamp, dailyStartTime, timezone }) => {
 
 /**
  *
- * @param {Set<String>} leaveSnaps Returns a set of leave dates using
+ * @param {Set} leaveSnaps Returns a set of leave dates using
  * the snapshot in the format `2nd Jan 2020`.
  */
 const getAllScheduleDatesFromActivitySnaps = leaveSnaps => {
   const leaveDates = new Set();
   leaveSnaps.forEach(leaves => {
+    /**
+     * @param {{ data: () => { scheduleDates: any; status: any; }; }} leave
+     */
     leaves.forEach(leave => {
       const { scheduleDates, status } = leave.data();
 
@@ -4382,79 +4387,91 @@ const attendanceHandler = async locals => {
   return batch.commit();
 };
 
-const handleRoleDocCancelled = async (activityNewData,batch,template,activityId) => {
-    if (template === 'admin') {
-      // if admin is cancelled, remove from custom claims
-      const userRecord = await getAuth(
-          activityNewData.attachment['Phone Number'].value,
-      );
-      const customClaims = Object.assign({}, userRecord.customClaims);
-      const adminClaimsSet = new Set(customClaims.admin);
-      adminClaimsSet.delete(activityNewData.office);
-      customClaims.admin = Array.from(adminClaimsSet);
-      return auth.setCustomUserClaims(userRecord.uid, customClaims).catch(console.error);
-    }
-    if (template === 'employee') {
-      // if employee is cancelled, remove his roledoc from roleReferences
-      batch.set(
-          rootCollections.profiles.doc(activityNewData.creator.phoneNumber),
-          {
-            roleReferences: {
-              [activityNewData.office]: admin.firestore.FieldValue.delete(),
-            },
-          },
-          {
-            merge: true,
-          },
-      );
-    }
-    if (template === 'subscription') {
-      // if his subscription is cancelled, remove it from profiles as it creates burden on read api and is garbage
-      batch.delete(
-          rootCollections.profiles
-              .doc(activityNewData.creator.phoneNumber)
-              .collection(subcollectionNames.SUBSCRIPTIONS)
-              .doc(activityId),
-      );
-    }
+const handleRoleDocCancelled = async (
+  activityNewData,
+  batch,
+  template,
+  activityId,
+) => {
+  if (template === 'admin') {
+    // if admin is cancelled, remove from custom claims
+    const userRecord = await getAuth(
+      activityNewData.attachment['Phone Number'].value,
+    );
+    const customClaims = Object.assign({}, userRecord.customClaims);
+    const adminClaimsSet = new Set(customClaims.admin || []);
+    adminClaimsSet.delete(activityNewData.office);
+    customClaims.admin = Array.from(adminClaimsSet);
+    return auth
+      .setCustomUserClaims(userRecord.uid, customClaims)
+      .catch(console.error);
+  }
+  if (template === 'employee') {
+    // if employee is cancelled, remove his roledoc from roleReferences
+    batch.set(
+      rootCollections.profiles.doc(activityNewData.creator.phoneNumber),
+      {
+        roleReferences: {
+          [activityNewData.office]: admin.firestore.FieldValue.delete(),
+        },
+      },
+      {
+        merge: true,
+      },
+    );
+  }
+  if (template === 'subscription') {
+    // if his subscription is cancelled, remove it from profiles as it creates burden on read api and is garbage
+    batch.delete(
+      rootCollections.profiles
+        .doc(activityNewData.creator.phoneNumber)
+        .collection(subcollectionNames.SUBSCRIPTIONS)
+        .doc(activityId),
+    );
+  }
 };
 
-const handleRoleDocConfirmed = async (activityNewData,batch,template,activityId) => {
+const handleRoleDocConfirmed = async (
+  activityNewData,
+  batch,
+  template,
+  activityId,
+) => {
   if (template === 'admin') {
     // if admin was confirmed or created , add to his custom claims
     const userRecord = await getAuth(
-        activityNewData.attachment['Phone Number'].value,
+      activityNewData.attachment['Phone Number'].value,
     );
     const customClaims = Object.assign({}, userRecord.customClaims);
-    const adminClaims = new Set(customClaims.admin).add(
-        activityNewData.office,
-    );
+    const adminClaims = new Set(customClaims.admin).add(activityNewData.office);
     customClaims.admin = Array.from(adminClaims);
-    return auth.setCustomUserClaims(userRecord.uid, customClaims).catch(console.error);
+    return auth
+      .setCustomUserClaims(userRecord.uid, customClaims)
+      .catch(console.error);
   }
   if (template === 'employee') {
     // if employee is CONFIRMED, add him to roleReferences
     batch.set(
-        rootCollections.profiles.doc(activityNewData.creator.phoneNumber),
-        {
-          roleReferences: {
-            [activityNewData.office]: activityNewData,
-          },
+      rootCollections.profiles.doc(activityNewData.creator.phoneNumber),
+      {
+        roleReferences: {
+          [activityNewData.office]: activityNewData,
         },
-        {
-          merge: true,
-        },
+      },
+      {
+        merge: true,
+      },
     );
   }
   if (template === 'subscription') {
     // create his subscription under /profiles/{}/sub-collection_subscription/
     batch.set(
-        rootCollections.profiles
-            .doc(activityNewData.creator.phoneNumber)
-            .collection(subcollectionNames.SUBSCRIPTIONS)
-            .doc(activityId),
-        activityNewData,
-        { merge: true },
+      rootCollections.profiles
+        .doc(activityNewData.creator.phoneNumber)
+        .collection(subcollectionNames.SUBSCRIPTIONS)
+        .doc(activityId),
+      activityNewData,
+      { merge: true },
     );
   }
 };
@@ -4471,10 +4488,10 @@ const handleRoleDoc = async locals => {
   const { role, status, template } = activityNewData;
   if (role !== 'report') return null;
   if (status === 'CONFIRMED') {
-    await handleRoleDocConfirmed(activityNewData,batch,template,activityId);
+    await handleRoleDocConfirmed(activityNewData, batch, template, activityId);
   }
   if (status === 'CANCELLED') {
-    await handleRoleDocCancelled(activityNewData,batch,template,activityId);
+    await handleRoleDocCancelled(activityNewData, batch, template, activityId);
   }
   try {
     await batch.commit();
@@ -4541,6 +4558,9 @@ const templateHandler = async locals => {
   return;
 };
 
+/**
+ * @param {{ after: any; before?: { data: () => any; }; }} change
+ */
 const handleProfile = async change => {
   const batch = db.batch();
   const {
@@ -4580,6 +4600,7 @@ const handleProfile = async change => {
     const { id: phoneNumber } = doc;
     const { addToInclude } = doc.data();
 
+    // @ts-ignore
     if (addendumDoc && phoneNumber === addendumDoc.get('user')) {
       locals.addendumCreatorInAssignees = true;
     }
@@ -4598,6 +4619,7 @@ const handleProfile = async change => {
   });
 
   if (addendumDoc && !locals.addendumCreatorInAssignees) {
+    // @ts-ignore
     authFetchPromises.push(getAuth(addendumDoc.get('user')));
   }
 
@@ -4715,6 +4737,9 @@ const handleProfile = async change => {
   return locals;
 };
 
+/**
+ * @param {{ after: { data: () => { (): any; new (): any; template: string; }; }; before: { data: () => any; }; }} change
+ */
 const activityOnWrite = async change => {
   /** Activity was deleted. For debugging only. */
   if (!change.after.data()) {
@@ -4746,7 +4771,7 @@ const activityOnWrite = async change => {
 
 module.exports = (change, context) => {
   try {
-    return activityOnWrite(change, context);
+    return activityOnWrite(change);
   } catch (error) {
     console.error({
       error,
