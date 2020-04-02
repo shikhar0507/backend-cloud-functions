@@ -4740,102 +4740,6 @@ const handleProfile = async change => {
   return locals;
 };
 
-const templateSubscriptionUpdate = async (activityId, data) => {
-  if (!data.template) return;
-  const {
-    docs: [templateDoc],
-  } = await rootCollections.activityTemplates
-    .where('name', '==', data.template)
-    .limit(1)
-    .get();
-  const { name: template } = templateDoc.data();
-  const templateUpdate = {
-    template,
-    _type: addendumTypes.SUBSCRIPTION,
-    schedule: templateDoc.get('schedule'),
-    venue: templateDoc.get('venue'),
-    attachment: templateDoc.get('attachment'),
-    report: templateDoc.get('report') || null,
-    /**
-     * Field timestamp is required in order for this
-     * doc to show up in the /read api query.
-     */
-    timestamp: Date.now(),
-  };
-  const phoneNumber = data.attachment['Phone Number'].value;
-  const {
-    docs: [updateDoc],
-  } = await rootCollections.updates
-    .where('phoneNumber', '==', phoneNumber)
-    .limit(1)
-    .get();
-  const userUid = updateDoc.id;
-  if (!userUid) {
-    return;
-  }
-  const { office, status } = data;
-
-  const dataForUpdate = Object.assign({}, templateUpdate, {
-    office,
-    status,
-  });
-
-  const ref = rootCollections.updates
-    .doc(userUid)
-    .collection(subcollectionNames.ADDENDUM)
-    .doc();
-  const batch = db.batch();
-  batch.set(ref, dataForUpdate);
-  return batch.commit();
-};
-const templateActivityUpdate = async (activityId, data) => {
-  // get the template of the activity
-  if (data.template) {
-    const {
-      docs: [templateActivity],
-    } = await rootCollections.activityTemplates
-      .where('name', '==', data.template)
-      .limit(1)
-      .get();
-    if (!templateActivity) return null;
-    const templateAttachmentFields = templateActivity.data().attachment;
-    // attachment of activity
-    const activityDataNew = {};
-    templateAttachmentFields.forEach(field => {
-      if (data.attachment[field]) {
-        activityDataNew[field] = data.attachment[field];
-      } else {
-        activityDataNew[field] = templateAttachmentFields[field];
-      }
-    });
-    const batch = db.batch();
-    batch.set(
-      rootCollections.profiles
-        .doc(data.attachment['Phone Number'].value)
-        .collection(subcollectionNames.ACTIVITIES)
-        .doc(activityId),
-      { attachment: activityDataNew },
-      { merge: true },
-    );
-    return batch.commit();
-  }
-};
-
-const templateUpdateHandler = async locals => {
-  const { id: activityId } = locals.change.after;
-  const activityData = locals.change.after.data();
-  // if activity is subscription then change
-  // as the subscription activity will barely change
-  if (activityData['template'] === 'subscription') {
-    return templateSubscriptionUpdate(activityId, activityData);
-  }
-  // otherwise sync it in a template
-  else {
-    return templateActivityUpdate(activityId, activityData);
-  }
-};
-
-
 /**
  * @param {{ after: { data: () => { (): any; new (): any; template: string; }; }; before: { data: () => any; }; }} change
  */
@@ -4865,9 +4769,6 @@ const activityOnWrite = async change => {
 
   await templateHandler(locals);
   
-  // Sync the activities and subscriptions if triggered by templateUpdation
-  await templateUpdateHandler(locals);
-
   return handleComments(locals.addendumDoc, locals);
 };
 
