@@ -85,5 +85,4 @@ module.exports = {
   recipientsOnUpdate,
   reimbursementHandler,
   temporaryImageHandler,
-  activityTemplatesOnUpdate,
 };
