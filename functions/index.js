@@ -46,14 +46,6 @@ const activityOnWrite = functions.firestore
 const profileOnWrite = functions.firestore
   .document('Profiles/{phoneNumber}')
   .onWrite(require('./firestore/profiles/on-write'));
-const activityTemplatesOnUpdate = functions
-  .runWith({
-    // This function deals with large number of activities at once.
-    memory: '2GB',
-    timeoutSeconds: '120',
-  })
-  .firestore.document('ActivityTemplates/{docId}')
-  .onUpdate(require('./firestore/subscriptions/on-update'));
 const recipientsOnUpdate = functions.firestore
   .document('Recipients/{docId}')
   .onUpdate(require('./firestore/recipients/on-update'));
