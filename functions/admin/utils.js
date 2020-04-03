@@ -1607,26 +1607,21 @@ const growthfileMsRequester = async ({
   if (!env.isProduction) {
     return;
   }
-
-  try {
-    return rpn(url.resolve(env.msActivityUrl, `api${resourcePath}`), {
-      body,
-      method,
-      json: true,
-      headers: {
-        Authorization: `Bearer ${env.growthfileMsToken}`,
-      },
-    });
-  } catch (error) {
-    // log the request in case of errors
+  return rpn(url.resolve(env.msActivityUrl, `api${resourcePath}`), {
+    body,
+    method,
+    json: true,
+    headers: {
+      Authorization: `Bearer ${env.growthfileMsToken}`,
+    },
+  }).catch(error => {
     console.error({
       url: url.resolve(env.msActivityUrl, `api/${resourcePath}`),
       body,
       Authorization: `Bearer ${env.growthfileMsToken}`,
     });
     console.error(error);
-  }
-  return null;
+  });
 };
 
 module.exports = {

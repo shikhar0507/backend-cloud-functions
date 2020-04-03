@@ -4409,7 +4409,9 @@ const handleRoleDocCancelled = async (
   if (template === 'employee') {
     // if employee is cancelled, remove his roledoc from roleReferences
     batch.set(
-      rootCollections.profiles.doc(activityNewData.creator.phoneNumber),
+      rootCollections.profiles.doc(
+        activityNewData.attachment['Phone Number'].value,
+      ),
       {
         roleReferences: {
           [activityNewData.office]: admin.firestore.FieldValue.delete(),
@@ -4424,7 +4426,7 @@ const handleRoleDocCancelled = async (
     // if his subscription is cancelled, remove it from profiles as it creates burden on read api and is garbage
     batch.delete(
       rootCollections.profiles
-        .doc(activityNewData.creator.phoneNumber)
+        .doc(activityNewData.attachment['Phone Number'].value)
         .collection(subcollectionNames.SUBSCRIPTIONS)
         .doc(activityId),
     );
@@ -4452,7 +4454,9 @@ const handleRoleDocConfirmed = async (
   if (template === 'employee') {
     // if employee is CONFIRMED, add him to roleReferences
     batch.set(
-      rootCollections.profiles.doc(activityNewData.creator.phoneNumber),
+      rootCollections.profiles.doc(
+        activityNewData.attachment['Phone Number'].value,
+      ),
       {
         roleReferences: {
           [activityNewData.office]: activityNewData,
@@ -4467,7 +4471,7 @@ const handleRoleDocConfirmed = async (
     // create his subscription under /profiles/{}/sub-collection_subscription/
     batch.set(
       rootCollections.profiles
-        .doc(activityNewData.creator.phoneNumber)
+        .doc(activityNewData.attachment['Phone Number'].value)
         .collection(subcollectionNames.SUBSCRIPTIONS)
         .doc(activityId),
       activityNewData,
@@ -4485,8 +4489,7 @@ const handleRoleDoc = async locals => {
   const batch = db.batch();
   const { id: activityId } = locals.change.after;
   const activityNewData = locals.change.after.data();
-  const { role, status, template } = activityNewData;
-  if (role !== 'report') return null;
+  const { status, template } = activityNewData;
   if (status === 'CONFIRMED') {
     await handleRoleDocConfirmed(activityNewData, batch, template, activityId);
   }
@@ -4765,7 +4768,7 @@ const activityOnWrite = async change => {
   await handleAddendum(locals);
 
   await templateHandler(locals);
-
+  
   return handleComments(locals.addendumDoc, locals);
 };
 
