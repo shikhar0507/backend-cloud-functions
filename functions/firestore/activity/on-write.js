@@ -98,8 +98,6 @@ const handleSupervisorUpdate = async locals => {
   // check for updated supervisors, delete old and new to all the employee's subscription activities
   const supervisors = [
     'First Supervisor',
-    'Second Supervisor',
-    'Third Supervisor',
   ];
   const toDelete = [];
   const toAdd = [];
