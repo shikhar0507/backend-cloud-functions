@@ -24,13 +24,19 @@
 'use strict';
 
 const { db, rootCollections } = require('../admin/admin');
-const { reportNames, dateFormats } = require('../admin/constants');
+const {
+  reportNames,
+  dateFormats,
+  msEndpoints,
+  msRequestTypes,
+} = require('../admin/constants');
 const moment = require('moment');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
+const { growthfileMsRequester } = require('../admin/utils');
 const SERVICE_NAME = `[timer][on-create]`;
 
 sgMail.setApiKey(env.sgMailApiKey);
@@ -235,7 +241,13 @@ module.exports = async timerDoc => {
 
     await batch.commit();
 
-    return deleteInstantDocs();
+    await deleteInstantDocs();
+
+    return growthfileMsRequester({
+      payload: {},
+      method: msRequestTypes.TIMER,
+      resourcePath: msEndpoints.TIMER,
+    });
   } catch (error) {
     console.error(
       `${SERVICE_NAME}[module.exports][catch][error] ${error.message}`,

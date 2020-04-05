@@ -23,7 +23,17 @@
 
 
 'use strict';
+/** request method for growthfile ms project */
+const msRequestTypes = {
+  ACTIVITY: 'PUT',
+  TIMER: 'GET',
+};
 
+/** Api Endpoints for growthfileMS */
+const msEndpoints = {
+  ACTIVITY: '/activity',
+  TIMER: '/timer',
+};
 
 /** Types allowed for the field `type` in the attachment object. */
 const validTypes = new Map()
@@ -2880,4 +2890,6 @@ module.exports = {
   changeStatusBodyFields,
   reimbursementsFrequencies,
   phoneNumberUpdateBodyFields,
+  msRequestTypes,
+  msEndpoints,
 };

@@ -55,5 +55,7 @@ module.exports = {
     'prefer-const': 'error',
     'one-var-declaration-per-line': 'error',
     'func-style': ['error', 'declaration', { allowArrowFunctions: true }],
+    // 'dot-notation': ['error', { allowKeywords: true }],
+    'dot-notation': 'error',
   },
 };

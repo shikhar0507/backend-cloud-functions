@@ -23,7 +23,7 @@
 
 'use strict';
 
-const { db, rootCollections } = require('../../admin/admin');
+const { db, rootCollections, auth } = require('../../admin/admin');
 const {
   vowels,
   httpsActions,
@@ -31,6 +31,8 @@ const {
   reportNames,
   addendumTypes,
   subcollectionNames,
+  msEndpoints,
+  msRequestTypes,
 } = require('../../admin/constants');
 const {
   slugify,
@@ -41,6 +43,7 @@ const {
   getNumbersbetween,
   getDefaultAttendanceObject,
   getDistanceFromDistanceMatrix,
+  growthfileMsRequester,
 } = require('../../admin/utils');
 const { toMapsUrl, getStatusForDay } = require('../recipients/report-utils');
 const {
@@ -56,6 +59,36 @@ const googleMapsClient = require('@google/maps').createClient({
   key: env.mapsApiKey,
   Promise: Promise,
 });
+
+const growthFileMsIntegration = async change => {
+  if (!change.after.data()) {
+    return null;
+  }
+
+  const {
+    after: { id: activityId },
+  } = change;
+  const activityData = change.after.data();
+
+  switch (activityData.template) {
+    case 'office':
+      activityData.officeId = activityId;
+      activityData.template = 'office';
+      break;
+    case 'recipient':
+      activityData.template = 'recipient';
+      activityData.recipientId = activityId;
+      break;
+    default:
+      return null;
+  }
+
+  return growthfileMsRequester({
+    method: msRequestTypes.ACTIVITY,
+    payload: activityData,
+    resourcePath: msEndpoints.ACTIVITY,
+  });
+};
 
 // updates the subscription activities on employee activity update
 const handleSupervisorUpdate = async locals => {
@@ -80,9 +113,11 @@ const handleSupervisorUpdate = async locals => {
     if (oldNumber !== '' && newNumber === '') {
       toDelete.push(oldNumber);
     }
+
     if (oldNumber === '' && newNumber !== '') {
       toAdd.push(newNumber);
     }
+
     if (oldNumber !== '' && newNumber !== '') {
       toDelete.push(oldNumber);
       toAdd.push(newNumber);
@@ -363,7 +398,7 @@ const getPlaceInformation = (mapsApiResult, geopoint) => {
   }
 
   return {
-    identifier: firstResult['formatted_address'],
+    identifier: firstResult.formatted_address,
     url: getLocationUrl(globalCode),
   };
 };
@@ -2093,7 +2128,9 @@ const handleAddendum = async locals => {
            * between A to B might not be the same as the legal
            * distance between B to A. So, do not mix the ordering.
            */
+          // @ts-ignore
           origins: getLatLngString(previousGeopoint),
+          // @ts-ignore
           destinations: getLatLngString(currentGeopoint),
           units: 'metric',
         })
@@ -3443,12 +3480,15 @@ const getLateStatus = ({ firstCheckInTimestamp, dailyStartTime, timezone }) => {
 
 /**
  *
- * @param {Set<String>} leaveSnaps Returns a set of leave dates using
+ * @param {Set} leaveSnaps Returns a set of leave dates using
  * the snapshot in the format `2nd Jan 2020`.
  */
 const getAllScheduleDatesFromActivitySnaps = leaveSnaps => {
   const leaveDates = new Set();
   leaveSnaps.forEach(leaves => {
+    /**
+     * @param {{ data: () => { scheduleDates: any; status: any; }; }} leave
+     */
     leaves.forEach(leave => {
       const { scheduleDates, status } = leave.data();
 
@@ -4347,6 +4387,123 @@ const attendanceHandler = async locals => {
   return batch.commit();
 };
 
+const handleRoleDocCancelled = async (
+  activityNewData,
+  batch,
+  template,
+  activityId,
+) => {
+  if (template === 'admin') {
+    // if admin is cancelled, remove from custom claims
+    const userRecord = await getAuth(
+      activityNewData.attachment['Phone Number'].value,
+    );
+    const customClaims = Object.assign({}, userRecord.customClaims);
+    const adminClaimsSet = new Set(customClaims.admin || []);
+    adminClaimsSet.delete(activityNewData.office);
+    customClaims.admin = Array.from(adminClaimsSet);
+    return auth
+      .setCustomUserClaims(userRecord.uid, customClaims)
+      .catch(console.error);
+  }
+  if (template === 'employee') {
+    // if employee is cancelled, remove his roledoc from roleReferences
+    batch.set(
+      rootCollections.profiles.doc(
+        activityNewData.attachment['Phone Number'].value,
+      ),
+      {
+        roleReferences: {
+          [activityNewData.office]: admin.firestore.FieldValue.delete(),
+        },
+      },
+      {
+        merge: true,
+      },
+    );
+  }
+  if (template === 'subscription') {
+    // if his subscription is cancelled, remove it from profiles as it creates burden on read api and is garbage
+    batch.delete(
+      rootCollections.profiles
+        .doc(activityNewData.attachment['Phone Number'].value)
+        .collection(subcollectionNames.SUBSCRIPTIONS)
+        .doc(activityId),
+    );
+  }
+};
+
+const handleRoleDocConfirmed = async (
+  activityNewData,
+  batch,
+  template,
+  activityId,
+) => {
+  if (template === 'admin') {
+    // if admin was confirmed or created , add to his custom claims
+    const userRecord = await getAuth(
+      activityNewData.attachment['Phone Number'].value,
+    );
+    const customClaims = Object.assign({}, userRecord.customClaims);
+    const adminClaims = new Set(customClaims.admin).add(activityNewData.office);
+    customClaims.admin = Array.from(adminClaims);
+    return auth
+      .setCustomUserClaims(userRecord.uid, customClaims)
+      .catch(console.error);
+  }
+  if (template === 'employee') {
+    // if employee is CONFIRMED, add him to roleReferences
+    batch.set(
+      rootCollections.profiles.doc(
+        activityNewData.attachment['Phone Number'].value,
+      ),
+      {
+        roleReferences: {
+          [activityNewData.office]: activityNewData,
+        },
+      },
+      {
+        merge: true,
+      },
+    );
+  }
+  if (template === 'subscription') {
+    // create his subscription under /profiles/{}/sub-collection_subscription/
+    batch.set(
+      rootCollections.profiles
+        .doc(activityNewData.attachment['Phone Number'].value)
+        .collection(subcollectionNames.SUBSCRIPTIONS)
+        .doc(activityId),
+      activityNewData,
+      { merge: true },
+    );
+  }
+};
+
+/**
+ * Handle templates with role parameter
+ * @param locals
+ * @return {Promise<null|void>}
+ */
+const handleRoleDoc = async locals => {
+  const batch = db.batch();
+  const { id: activityId } = locals.change.after;
+  const activityNewData = locals.change.after.data();
+  const { status, template } = activityNewData;
+  if (status === 'CONFIRMED') {
+    await handleRoleDocConfirmed(activityNewData, batch, template, activityId);
+  }
+  if (status === 'CANCELLED') {
+    await handleRoleDocCancelled(activityNewData, batch, template, activityId);
+  }
+  try {
+    await batch.commit();
+  } catch (error) {
+    console.error(error);
+  }
+  return null;
+};
+
 const templateHandler = async locals => {
   const { template } = locals.change.after.data();
   const action = locals.addendumDocData ? locals.addendumDocData.action : null;
@@ -4379,6 +4536,9 @@ const templateHandler = async locals => {
     report: locals.change.after.get('report'),
   });
 
+  if (activityReportName === 'role') {
+    await handleRoleDoc(locals);
+  }
   if (activityReportName === 'attendance') {
     await attendanceHandler(locals);
   }
@@ -4395,9 +4555,15 @@ const templateHandler = async locals => {
 
   // await mapActivityToUserUpdates(locals.change.after, null);
 
+  // handle growthfileMs integration parallely
+  await growthFileMsIntegration(locals.change).catch(console.error);
+
   return;
 };
 
+/**
+ * @param {{ after: any; before?: { data: () => any; }; }} change
+ */
 const handleProfile = async change => {
   const batch = db.batch();
   const {
@@ -4437,6 +4603,7 @@ const handleProfile = async change => {
     const { id: phoneNumber } = doc;
     const { addToInclude } = doc.data();
 
+    // @ts-ignore
     if (addendumDoc && phoneNumber === addendumDoc.get('user')) {
       locals.addendumCreatorInAssignees = true;
     }
@@ -4455,6 +4622,7 @@ const handleProfile = async change => {
   });
 
   if (addendumDoc && !locals.addendumCreatorInAssignees) {
+    // @ts-ignore
     authFetchPromises.push(getAuth(addendumDoc.get('user')));
   }
 
@@ -4572,6 +4740,9 @@ const handleProfile = async change => {
   return locals;
 };
 
+/**
+ * @param {{ after: { data: () => { (): any; new (): any; template: string; }; }; before: { data: () => any; }; }} change
+ */
 const activityOnWrite = async change => {
   /** Activity was deleted. For debugging only. */
   if (!change.after.data()) {
@@ -4597,13 +4768,13 @@ const activityOnWrite = async change => {
   await handleAddendum(locals);
 
   await templateHandler(locals);
-
+  
   return handleComments(locals.addendumDoc, locals);
 };
 
 module.exports = (change, context) => {
   try {
-    return activityOnWrite(change, context);
+    return activityOnWrite(change);
   } catch (error) {
     console.error({
       error,
