@@ -1607,6 +1607,9 @@ const growthfileMsRequester = async ({
   if (!env.isProduction) {
     return;
   }
+  console.log(`api${resourcePath}`)
+  console.log(body);
+  console.log(`Bearer ${env.growthfileMsToken}`)
   return rpn(url.resolve(env.msActivityUrl, `api${resourcePath}`), {
     body,
     method,

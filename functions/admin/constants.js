@@ -32,7 +32,7 @@ const msRequestTypes = {
 /** Api Endpoints for growthfileMS */
 const msEndpoints = {
   ACTIVITY: '/activity',
-  TIMER: '/timer',
+  TIMER: 'timer',
 };
 
 /** Types allowed for the field `type` in the attachment object. */
