@@ -33,6 +33,7 @@ const {
   subcollectionNames,
   msEndpoints,
   msRequestTypes,
+  enumerateDaysBetweenDates,
 } = require('../../admin/constants');
 const {
   slugify,
@@ -193,10 +194,20 @@ const getProfileActivityObject = ({
   customerObject,
 }) => {
   const { id: activityId } = activityDoc;
+  const dates = [];
+  const schedules = activityDoc.get('schedule');
+  if (schedules && Array.isArray(schedules) && schedules.length > 0) {
+    schedules.forEach(({ startTime, endTime }) => {
+      dates.push(
+        ...enumerateDaysBetweenDates(startTime, endTime, dateFormats.DATE),
+      );
+    });
+  };
   const intermediate = Object.assign({}, activityDoc.data(), {
     activityId,
     addendumDocRef: null,
     timestamp: Date.now(),
+    dates: dates,
     assignees: assigneePhoneNumbersArray.map(phoneNumber => {
       const { displayName = '', photoURL = '' } =
         assigneesMap.get(phoneNumber) || {};
