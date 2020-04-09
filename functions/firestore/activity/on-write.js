@@ -33,8 +33,8 @@ const {
   subcollectionNames,
   msEndpoints,
   msRequestTypes,
-  enumerateDaysBetweenDates,
 } = require('../../admin/constants');
+
 const {
   slugify,
   getAuth,
@@ -45,6 +45,7 @@ const {
   getDefaultAttendanceObject,
   getDistanceFromDistanceMatrix,
   growthfileMsRequester,
+  enumerateDaysBetweenDates,
 } = require('../../admin/utils');
 const { toMapsUrl, getStatusForDay } = require('../recipients/report-utils');
 const {
@@ -97,9 +98,7 @@ const handleSupervisorUpdate = async locals => {
   const activityEmployeeDataNew = change.after.data();
 
   // check for updated supervisors, delete old and new to all the employee's subscription activities
-  const supervisors = [
-    'First Supervisor',
-  ];
+  const supervisors = ['First Supervisor'];
   const toDelete = [];
   const toAdd = [];
   const activityEmployeeOldAttachment = change.before.data().attachment;
@@ -202,7 +201,7 @@ const getProfileActivityObject = ({
         ...enumerateDaysBetweenDates(startTime, endTime, dateFormats.DATE),
       );
     });
-  };
+  }
   const intermediate = Object.assign({}, activityDoc.data(), {
     activityId,
     addendumDocRef: null,
@@ -4777,7 +4776,7 @@ const activityOnWrite = async change => {
   await handleAddendum(locals);
 
   await templateHandler(locals);
-  
+
   return handleComments(locals.addendumDoc, locals);
 };
 
