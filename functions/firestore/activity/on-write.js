@@ -87,7 +87,7 @@ const growthFileMsIntegration = async change => {
 
   return growthfileMsRequester({
     method: msRequestTypes.ACTIVITY,
-    payload: activityData,
+    payload:JSON.stringify(activityData),
     resourcePath: msEndpoints.ACTIVITY,
   });
 };
