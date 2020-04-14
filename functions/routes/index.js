@@ -85,16 +85,16 @@ module.exports = req => {
       func = require('../firestore/dm');
       break;
     case 'activities/create':
-      func = require('../firestore/activity/on-create');
+      func = require('../firestore/activity/api');
       break;
     case 'activities/update':
-      func = require('../firestore/activity/on-update');
+      func = require('../firestore/activity/api');
       break;
     case 'activities/change-status':
-      func = require('../firestore/activity/on-change-status');
+      func = require('../firestore/activity/api');
       break;
     case 'activities/share':
-      func = require('../firestore/activity/on-share');
+      func = require('../firestore/activity/api');
       break;
     case 'admin/bulk':
       checkAdmin = true;
