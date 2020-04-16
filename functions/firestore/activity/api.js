@@ -250,25 +250,27 @@ const getRoleObject = subscriptionDoc => {
 
 const getRoleDocument = locals => {
   const office = locals.conn.req.body.office;
-  const roleDocument = locals.profileDoc.get('roleReferences.' + office);
-  return roleDocument;
+  if (
+    locals.profileDoc.get('roleReferences') &&
+    locals.profileDoc.get('roleReferences')[office]
+  ) {
+    return locals.profileDoc.get('roleReferences')[office];
+  } else {
+    return getRoleObject(locals.subscriptionDoc);
+  }
 };
 
-const getAction = (conn, locals) => {
+const getAction = conn => {
   const method = conn.req.body.method;
   switch (method) {
     case 'create':
       return httpsActions.create;
-      break;
     case 'share':
       return httpsActions.share;
-      break;
     case 'update':
       return httpsActions.update;
-      break;
     case 'change-status':
       return httpsActions.changeStatus;
-      break;
     default:
       throw new Error('Not allowed');
   }
@@ -523,11 +525,8 @@ const checkDbReadsII = async (conn, locals, result) => {
     dateConflictResults.forEach(dateConflictResult => {
       if (!dateConflictResult.empty) {
         proceed = false;
-        const [
-          {},
-          {},
-          { value: day },
-        ] = dateConflictResult.query._queryOptions.fieldFilters;
+        const day =
+          dateConflictResult.query._queryOptions.fieldFilters[2].value;
         sendResponse(
           conn,
           code.conflict,
@@ -554,128 +553,119 @@ const checkDbReadsII = async (conn, locals, result) => {
     });
   }
   if (!proceed) return;
-  switch (locals.conn.req.body.template) {
-    case 'leave':
-      locals.maxLeavesAllowed = Number.POSITIVE_INFINITY;
-      locals.leavesTakenThisYear = 0;
+  if (locals.conn.req.body.template === 'leave') {
+    locals.maxLeavesAllowed = Number.POSITIVE_INFINITY;
+    locals.leavesTakenThisYear = 0;
 
-      if (!conn.req.body.attachment['Leave Type'].value) {
-        locals.maxLeavesAllowed = 20;
-      }
+    if (!conn.req.body.attachment['Leave Type'].value) {
+      locals.maxLeavesAllowed = 20;
+    }
 
-      const [leaveTypeQuery, leaveActivityQuery] = [
-        locals.dbReadsII.limitDocument,
-        locals.dbReadsII.limitQuery,
-      ];
+    const [leaveTypeQuery, leaveActivityQuery] = [
+      locals.dbReadsII.limitDocument,
+      locals.dbReadsII.limitQuery,
+    ];
 
-      if (!leaveTypeQuery.empty) {
-        locals.maxLeavesAllowed = Number(
-          leaveTypeQuery.docs[0].get('attachment.Annual Limit.value') || 0,
-        );
-      }
+    if (!leaveTypeQuery.empty) {
+      locals.maxLeavesAllowed = Number(
+        leaveTypeQuery.docs[0].get('attachment.Annual Limit.value') || 0,
+      );
+    }
 
-      leaveActivityQuery.forEach(doc => {
-        const [{ startTime, endTime }] = doc.get('schedule');
-        locals.leavesTakenThisYear += momentTz(
-          momentTz(endTime)
-            .endOf('day')
-            .valueOf(),
-        ).diff(
-          momentTz(startTime)
-            .startOf('day')
-            .valueOf(),
-          'days',
-        );
-      });
-      const leavesTakenThisTime = locals.conn.req.body.dates.length;
-      if (
-        locals.leavesTakenThisYear + leavesTakenThisTime >
-        locals.maxLeavesAllowed
-      ) {
-        return sendResponse(
-          conn,
-          code.conflict,
-          `Cannot create leave` +
-            ` You have exceeded the limit for leave` +
-            ` application under ${conn.req.body.attachment['Leave Type'].value}` +
-            ` by ${locals.maxLeavesAllowed -
-              (locals.leavesTakenThisYear + leavesTakenThisTime)}`,
-        );
-      }
+    leaveActivityQuery.forEach(doc => {
+      const [{ startTime, endTime }] = doc.get('schedule');
+      locals.leavesTakenThisYear += momentTz(
+        momentTz(endTime)
+          .endOf('day')
+          .valueOf(),
+      ).diff(
+        momentTz(startTime)
+          .startOf('day')
+          .valueOf(),
+        'days',
+      );
+    });
+    const leavesTakenThisTime = locals.conn.req.body.dates.length;
+    if (
+      locals.leavesTakenThisYear + leavesTakenThisTime >
+      locals.maxLeavesAllowed
+    ) {
+      return sendResponse(
+        conn,
+        code.conflict,
+        `Cannot create leave` +
+          ` You have exceeded the limit for leave` +
+          ` application under ${conn.req.body.attachment['Leave Type'].value}` +
+          ` by ${locals.maxLeavesAllowed -
+            (locals.leavesTakenThisYear + leavesTakenThisTime)}`,
+      );
+    }
 
-      const [firstSchedule] = conn.req.body.schedule;
-      const { startTime, endTime } = firstSchedule;
-      const startTimeMoment = momentTz(startTime);
-      const endTimeMoment = momentTz(endTime);
+    const [firstSchedule] = conn.req.body.schedule;
+    const { startTime } = firstSchedule;
 
-      // leave is for a date which is 2 months back => don't allow
-      const differenceInMonths = momentTz().diff(
-        momentTz(startTime),
-        'months',
-        true,
+    // leave is for a date which is 2 months back => don't allow
+    const differenceInMonths = momentTz().diff(
+      momentTz(startTime),
+      'months',
+      true,
+    );
+
+    if (differenceInMonths > 2) {
+      proceed = false;
+      return sendResponse(
+        conn,
+        code.badRequest,
+        `Leave cannot be applied for more than two months in the past`,
+      );
+    }
+  }
+  if (locals.conn.req.body.template === 'claim') {
+    const timezone = locals.officeDoc.get('attachment.Timezone.value');
+    const momentNow = momentTz().tz(timezone);
+    const monthStart = momentNow
+      .clone()
+      .startOf('month')
+      .valueOf();
+    const monthEnd = momentNow
+      .clone()
+      .endOf('month')
+      .valueOf();
+
+    const [
+      claimActivities,
+      {
+        docs: [claimTypeDoc],
+      },
+    ] = locals.dbReadsII.claimChecks;
+
+    const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
+    let claimsThisMonth = currencyJs(0);
+
+    claimActivities.forEach(doc => {
+      // Start Time of the schedule has a higher priority.
+      const isCancelled = doc.get('status') === 'CANCELLED';
+      const [{ startTime }] = doc.get('schedule');
+      const createTime = momentTz(startTime || doc.createTime.toMillis()).tz(
+        timezone,
       );
 
-      if (differenceInMonths > 2) {
-        proceed = false;
-        return sendResponse(
-          conn,
-          code.badRequest,
-          `Leave cannot be applied for more than two months in the past`,
-        );
+      const createdThisMonth = createTime.isBetween(monthStart, monthEnd);
+      if (createdThisMonth && !isCancelled) {
+        const amount = parseInt(doc.get('attachment.Amount.value') || 0);
+        claimsThisMonth = claimsThisMonth.add(amount);
       }
-      break;
-    case 'claim':
-      const { claimType, timezone } = {
-        claimType,
-        officeId: locals.officeDoc.id,
-        phoneNumber: conn.requester.phoneNumber,
-        timezone: locals.officeDoc.get('attachment.Timezone.value'),
-      };
-      const momentNow = momentTz().tz(timezone);
-      const monthStart = momentNow
-        .clone()
-        .startOf('month')
-        .valueOf();
-      const monthEnd = momentNow
-        .clone()
-        .endOf('month')
-        .valueOf();
-
-      const [
-        claimActivities,
-        {
-          docs: [claimTypeDoc],
-        },
-      ] = locals.dbReadsII.claimChecks;
-
-      const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
-      let claimsThisMonth = currencyJs(0);
-
-      claimActivities.forEach(doc => {
-        // Start Time of the schedule has a higher priority.
-        const isCancelled = doc.get('status') === 'CANCELLED';
-        const [{ startTime }] = doc.get('schedule');
-        const createTime = momentTz(startTime || doc.createTime.toMillis()).tz(
-          timezone,
-        );
-
-        const createdThisMonth = createTime.isBetween(monthStart, monthEnd);
-        if (createdThisMonth && !isCancelled) {
-          const amount = parseInt(doc.get('attachment.Amount.value') || 0);
-          claimsThisMonth = claimsThisMonth.add(amount);
-        }
-      });
-      if (
-        currencyJs(claimsThisMonth).add(amount).value >
-        currencyJs(monthlyLimit).value
-      ) {
-        return sendResponse(
-          conn,
-          code.conflict,
-          `Cannot create a claim. Max Claims (${monthlyLimit}) amount this month.`,
-        );
-      }
-      break;
+    });
+    if (
+      currencyJs(claimsThisMonth).add(amount).value >
+      currencyJs(monthlyLimit).value
+    ) {
+      return sendResponse(
+        conn,
+        code.conflict,
+        `Cannot create a claim. Max Claims (${monthlyLimit}) amount this month.`,
+      );
+    }
   }
   if (!proceed) return;
   return handleAssignees(conn, locals, result);
@@ -1030,10 +1020,14 @@ const createLocals = async (
   const [officeDoc] = officeQueryResult.docs;
 
   let activityExists = null;
-  if (existingActivityResult.exists) {
+  if (existingActivityResult && existingActivityResult.exists) {
     activityExists = true;
   }
-  if (samePhoneNumberResult.docs[0].id !== conn.req.body.activityId) {
+  if (
+    samePhoneNumberResult &&
+    !samePhoneNumberResult.empty &&
+    samePhoneNumberResult.docs[0].id !== conn.req.body.activityId
+  ) {
     return sendResponse(
       conn,
       code.forbidden,
@@ -1061,7 +1055,11 @@ const createLocals = async (
     }
   }
 
-  if (sameNameResult.docs.length > 0) {
+  if (
+    sameNameResult &&
+    !sameNameResult.empty &&
+    sameNameResult.docs.length > 0
+  ) {
     // if another activity with same name if found which is CONFIRMED,
     // then dont allow activity status to be CONFIRMED
     let currentActivityId = null;
@@ -1151,8 +1149,6 @@ const createLocals = async (
   } else {
     mainActivityData.dateConflict = false;
   }
-  const startMoment = momentTz(conn.req.body.schedule[0].endTime);
-  const endMoment = momentTz(conn.req.body.schedule[0].endTime);
   // the following code accept a limit parameter and fetches the appropriate activities to allow
   // limit based checking
   // underway
@@ -1212,8 +1208,7 @@ module.exports = async conn => {
         .doc(conn.requester.phoneNumber)
         .collection(subcollectionNames.SUBSCRIPTIONS)
         .where('office', '==', conn.req.body.office)
-        .where('template', '==', 'subscription')
-        .where('attachment.Template.value', '==', conn.req.body.template)
+        .where('template', '==', conn.req.body.template)
         .where('status', '==', 'CONFIRMED')
         .limit(1)
         .get(),
@@ -1234,40 +1229,48 @@ module.exports = async conn => {
           .doc(conn.req.body.activityId)
           .get(),
       );
+    } else {
+      promises.push(Promise.resolve(null));
     }
-    if (conn.req.body.hasOwnProperty('attachment')) {
-      if (conn.req.body.hasOwnProperty('Name')) {
-        promises.push(
-          rootCollections.activities
-            .where('template', '==', conn.req.body.template)
-            .where(
-              'attachment.Name.value',
-              '==',
-              conn.req.body.attachment.Name.value,
-            )
-            .where('status', '==', 'CONFIRMED')
-            .where('officeId', '==', conn.req.body.officeId)
-            .limit(2)
-            .get(),
-        );
-      }
+    if (
+      conn.req.body.hasOwnProperty('attachment') &&
+      conn.req.body.hasOwnProperty('Name')
+    ) {
+      promises.push(
+        rootCollections.activities
+          .where('template', '==', conn.req.body.template)
+          .where(
+            'attachment.Name.value',
+            '==',
+            conn.req.body.attachment.Name.value,
+          )
+          .where('status', '==', 'CONFIRMED')
+          .where('officeId', '==', conn.req.body.officeId)
+          .limit(2)
+          .get(),
+      );
+    } else {
+      promises.push(Promise.resolve(null));
     }
-    if (conn.req.body.hasOwnProperty('attachment')) {
-      if (conn.req.body.hasOwnProperty('Phone Number')) {
-        promises.push(
-          rootCollections.activities
-            .where('template', '==', conn.req.body.template)
-            .where(
-              'attachment.Name.value',
-              '==',
-              conn.req.body.attachment.Name.value,
-            )
-            .where('status', '==', 'CONFIRMED')
-            .where('officeId', '==', conn.req.body.officeId)
-            .limit(1)
-            .get(),
-        );
-      }
+    if (
+      conn.req.body.hasOwnProperty('attachment') &&
+      conn.req.body.hasOwnProperty('Phone Number')
+    ) {
+      promises.push(
+        rootCollections.activities
+          .where('template', '==', conn.req.body.template)
+          .where(
+            'attachment.Name.value',
+            '==',
+            conn.req.body.attachment.Name.value,
+          )
+          .where('status', '==', 'CONFIRMED')
+          .where('officeId', '==', conn.req.body.officeId)
+          .limit(1)
+          .get(),
+      );
+    } else {
+      promises.push(Promise.resolve(null));
     }
     return createLocals(conn, await Promise.all(promises));
   } catch (error) {
