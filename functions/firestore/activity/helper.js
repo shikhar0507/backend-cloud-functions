@@ -1301,82 +1301,73 @@ const attendanceConflictHandler = async ({ schedule, phoneNumber, office }) => {
 const checkLimitHelper = ({ locals, sendResponse, code }) => {
   locals.firestoreReadsTwo.checkLimit = [];
   const { template } = locals.conn.req.body;
-  switch (template) {
-    case 'leave':
-      const startMoment = momentTz(locals.conn.req.body.schedule[0].endTime);
-      const endMoment = momentTz(locals.conn.req.body.schedule[0].endTime);
-      locals.dbReadsII.limitDocument = [
-        rootCollections.activities
-          .where('office', '==', locals.officeDoc.get('office'))
-          .where('template', '==', 'leave-type')
-          .where(
-            'attachment.Name.value',
-            '==',
-            locals.conn.req.body.attachment['Leave Type'].value,
-          )
-          .limit(1)
-          .get(),
-      ];
-      locals.dbReadsII.limitQuery = [
-        locals.officeDoc.ref
-          .collection(subcollectionNames.ACTIVITIES)
-          .where('creator', '==', locals.conn.requester.phoneNumber)
-          .where('template', '==', 'leave')
-          .where(
-            'attachment.Leave Type.value',
-            '==',
-            locals.conn.req.body.attachment['Leave Type'].value,
-          )
-          .where('startYear', '==', startMoment.year())
-          .where('endYear', '==', endMoment.year())
-          /** Cancelled leaves don't count to the full number */
-          .where('status', '==', 'CONFIRMED')
-          .get(),
-      ];
-      break;
-    case 'claim':
-      const claimType = locals.conn.req.body.attachment['Claim Type'].value;
-      const amount = locals.conn.req.body.attachment.Amount.value;
-      if (!claimType) {
-        return;
-      }
-      if (Number(amount || 0) < 1) {
-        return sendResponse(
-          locals.conn,
-          code.badRequest,
-          `Amount should be a positive number`,
-        );
-      }
-      const { officeId, phoneNumber } = {
-        officeId: locals.officeDoc.id,
-        phoneNumber: locals.conn.requester.phoneNumber,
-      };
-      const baseQuery = rootCollections.activities.where(
-        'officeId',
-        '==',
-        officeId,
-      );
-
-      locals.dbReadsII.claimChecks = [
-        baseQuery
-          .where('template', '==', 'claim')
-          .where('creator.phoneNumber', '==', phoneNumber)
-          .where('attachment.Claim Type.value', '==', claimType)
-          .get(),
-        baseQuery
-          .where('template', '==', 'claim-type')
-          .where('attachment.Name.value', '==', claimType)
-          .limit(1)
-          .get(),
-      ];
-      break;
-    default:
-      sendResponse(
+  if (template === 'leave') {
+    const startMoment = momentTz(locals.conn.req.body.schedule[0].endTime);
+    const endMoment = momentTz(locals.conn.req.body.schedule[0].endTime);
+    locals.dbReadsII.limitDocument = [
+      rootCollections.activities
+        .where('office', '==', locals.officeDoc.get('office'))
+        .where('template', '==', 'leave-type')
+        .where(
+          'attachment.Name.value',
+          '==',
+          locals.conn.req.body.attachment['Leave Type'].value,
+        )
+        .limit(1)
+        .get(),
+    ];
+    locals.dbReadsII.limitQuery = [
+      locals.officeDoc.ref
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('creator', '==', locals.conn.requester.phoneNumber)
+        .where('template', '==', 'leave')
+        .where(
+          'attachment.Leave Type.value',
+          '==',
+          locals.conn.req.body.attachment['Leave Type'].value,
+        )
+        .where('startYear', '==', startMoment.year())
+        .where('endYear', '==', endMoment.year())
+        /** Cancelled leaves don't count to the full number */
+        .where('status', '==', 'CONFIRMED')
+        .get(),
+    ];
+  }
+  if (template === 'claim') {
+    const claimType = locals.conn.req.body.attachment['Claim Type'].value;
+    const amount = locals.conn.req.body.attachment.Amount.value;
+    if (!claimType) {
+      return;
+    }
+    if (Number(amount || 0) < 1) {
+      return sendResponse(
         locals.conn,
-        code.conflict,
-        'Activity format is not correct',
+        code.badRequest,
+        `Amount should be a positive number`,
       );
-      return false;
+    }
+    const { officeId, phoneNumber } = {
+      officeId: locals.officeDoc.id,
+      phoneNumber: locals.conn.requester.phoneNumber,
+    };
+    const baseQuery = rootCollections.activities.where(
+      'officeId',
+      '==',
+      officeId,
+    );
+
+    locals.dbReadsII.claimChecks = [
+      baseQuery
+        .where('template', '==', 'claim')
+        .where('creator.phoneNumber', '==', phoneNumber)
+        .where('attachment.Claim Type.value', '==', claimType)
+        .get(),
+      baseQuery
+        .where('template', '==', 'claim-type')
+        .where('attachment.Name.value', '==', claimType)
+        .limit(1)
+        .get(),
+    ];
   }
   return true;
 };
@@ -1437,41 +1428,6 @@ const activityCreator = ({
   };
   return activity;
 };
-
-const addedndumCreator = (
-  {
-    timestamp = Date.now(),
-    month,
-    date,
-    year,
-    action,
-    roleDoc,
-    activity,
-    distanceFromPrevious,
-    distanceAccurate,
-  },
-  {
-    template,
-    name,
-    lat,
-    long,
-    url,
-    route,
-    locality,
-    adminstrative_area_level_2,
-    adminstrative_area_level_1,
-    country,
-    postal_code,
-  },
-  {
-    display_name,
-    phoneNumber,
-    email,
-    display_url,
-    isSupportRequest,
-    potentialSameUsers,
-  },
-) => {};
 
 module.exports = {
   attendanceConflictHandler,
