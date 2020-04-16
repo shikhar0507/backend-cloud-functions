@@ -621,6 +621,21 @@ const checkDbReadsII = async (conn, locals, result) => {
     }
   }
   if (locals.conn.req.body.template === 'claim') {
+    const claimType = conn.req.body.attachment['Claim Type'].value;
+    const amount = conn.req.body.attachment.Amount.value;
+
+    if (!claimType) {
+
+    }
+
+    if (Number(amount || 0) < 1) {
+      return sendResponse(
+          conn,
+          code.badRequest,
+          `Amount should be a positive number`,
+      );
+    }
+
     const timezone = locals.officeDoc.get('attachment.Timezone.value');
     const momentNow = momentTz().tz(timezone);
     const monthStart = momentNow
@@ -656,6 +671,7 @@ const checkDbReadsII = async (conn, locals, result) => {
         claimsThisMonth = claimsThisMonth.add(amount);
       }
     });
+
     if (
       currencyJs(claimsThisMonth).add(amount).value >
       currencyJs(monthlyLimit).value
