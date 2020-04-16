@@ -625,62 +625,64 @@ const checkDbReadsII = async (conn, locals, result) => {
     const amount = conn.req.body.attachment.Amount.value;
 
     if (!claimType) {
-
-    }
-
-    if (Number(amount || 0) < 1) {
-      return sendResponse(
-          conn,
-          code.badRequest,
-          `Amount should be a positive number`,
-      );
-    }
-
-    const timezone = locals.officeDoc.get('attachment.Timezone.value');
-    const momentNow = momentTz().tz(timezone);
-    const monthStart = momentNow
-      .clone()
-      .startOf('month')
-      .valueOf();
-    const monthEnd = momentNow
-      .clone()
-      .endOf('month')
-      .valueOf();
-
-    const [
-      claimActivities,
-      {
-        docs: [claimTypeDoc],
-      },
-    ] = locals.dbReadsII.claimChecks;
-
-    const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
-    let claimsThisMonth = currencyJs(0);
-
-    claimActivities.forEach(doc => {
-      // Start Time of the schedule has a higher priority.
-      const isCancelled = doc.get('status') === 'CANCELLED';
-      const [{ startTime }] = doc.get('schedule');
-      const createTime = momentTz(startTime || doc.createTime.toMillis()).tz(
-        timezone,
-      );
-
-      const createdThisMonth = createTime.isBetween(monthStart, monthEnd);
-      if (createdThisMonth && !isCancelled) {
-        const amount = parseInt(doc.get('attachment.Amount.value') || 0);
-        claimsThisMonth = claimsThisMonth.add(amount);
+      proceed=true;
+    } else {
+      if (Number(amount || 0) < 1) {
+        proceed=false;
+        return sendResponse(
+            conn,
+            code.badRequest,
+            `Amount should be a positive number`,
+        );
       }
-    });
 
-    if (
-      currencyJs(claimsThisMonth).add(amount).value >
-      currencyJs(monthlyLimit).value
-    ) {
-      return sendResponse(
-        conn,
-        code.conflict,
-        `Cannot create a claim. Max Claims (${monthlyLimit}) amount this month.`,
-      );
+      const timezone = locals.officeDoc.get('attachment.Timezone.value');
+      const momentNow = momentTz().tz(timezone);
+      const monthStart = momentNow
+          .clone()
+          .startOf('month')
+          .valueOf();
+      const monthEnd = momentNow
+          .clone()
+          .endOf('month')
+          .valueOf();
+
+      const [
+        claimActivities,
+        {
+          docs: [claimTypeDoc],
+        },
+      ] = locals.dbReadsII.claimChecks;
+
+      const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
+      let claimsThisMonth = currencyJs(0);
+
+      claimActivities.forEach(doc => {
+        // Start Time of the schedule has a higher priority.
+        const isCancelled = doc.get('status') === 'CANCELLED';
+        const [{startTime}] = doc.get('schedule');
+        const createTime = momentTz(startTime || doc.createTime.toMillis()).tz(
+            timezone,
+        );
+
+        const createdThisMonth = createTime.isBetween(monthStart, monthEnd);
+        if (createdThisMonth && !isCancelled) {
+          const amount = parseInt(doc.get('attachment.Amount.value') || 0);
+          claimsThisMonth = claimsThisMonth.add(amount);
+        }
+      });
+
+      if (
+          currencyJs(claimsThisMonth).add(amount).value >
+          currencyJs(monthlyLimit).value
+      ) {
+        proceed=false;
+        return sendResponse(
+            conn,
+            code.conflict,
+            `Cannot create a claim. Max Claims (${monthlyLimit}) amount this month.`,
+        );
+      }
     }
   }
   if (!proceed) return;
