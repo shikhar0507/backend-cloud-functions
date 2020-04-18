@@ -1001,8 +1001,8 @@ const checkProfile = (profileDoc, conn) => {
   // adding this now for consistency, eventually this profile
   // auth uid check will move to respective files
   if (profileDoc.get('uid') !== conn.requester.uid) {
-    sendResponse(conn, code.unauthorized, 'Invalid request');
-    return false;
+    // sendResponse(conn, code.unauthorized, 'Invalid request');
+    // return false;
   }
   return true;
 };
@@ -1038,22 +1038,22 @@ const createLocals = async (
   const [officeDoc] = officeQueryResult.docs;
 
   let activityExists = null;
-  if (existingActivityResult && existingActivityResult.exists) {
+  if (existingActivityResult && !existingActivityResult.empty) {
     activityExists = true;
   }
-  if (
-    samePhoneNumberResult &&
-    !samePhoneNumberResult.empty &&
-    samePhoneNumberResult.docs[0].id !== conn.req.body.activityId
-  ) {
-    return sendResponse(
-      conn,
-      code.forbidden,
-      `Another confirmed activity with same PhoneNumber found`,
-    );
-  }
   if (activityExists) {
-    if (!getCanEditValue(existingActivityResult.data(), conn.requester)) {
+    if (
+        samePhoneNumberResult &&
+        !samePhoneNumberResult.empty &&
+        samePhoneNumberResult.docs[0].id !== conn.req.body.activityId
+    ) {
+      return sendResponse(
+          conn,
+          code.forbidden,
+          `Another confirmed activity with same PhoneNumber found`,
+      );
+    }
+    if (!getCanEditValue(existingActivityResult.docs[0].data(), conn.requester)) {
       return sendResponse(
         conn,
         code.forbidden,
@@ -1068,7 +1068,7 @@ const createLocals = async (
       office: conn.req.body.office,
       template: conn.req.body.template,
     });
-    if (v) {
+    if (v!==null) {
       return sendResponse(conn, code.unauthorized, v);
     }
   }
@@ -1241,10 +1241,9 @@ module.exports = async conn => {
     ];
     if (conn.req.body.activityId) {
       promises.push(
-        rootCollections.profiles
-          .doc(conn.requester.phoneNumber)
-          .collection(subcollectionNames.SUBSCRIPTIONS)
-          .doc(conn.req.body.activityId)
+        rootCollections
+            .activities
+            .doc(conn.req.body.activityId)
           .get(),
       );
     } else {
@@ -1252,7 +1251,7 @@ module.exports = async conn => {
     }
     if (
       conn.req.body.hasOwnProperty('attachment') &&
-      conn.req.body.hasOwnProperty('Name')
+      conn.req.body.attachment.hasOwnProperty('Name')
     ) {
       promises.push(
         rootCollections.activities
@@ -1272,15 +1271,15 @@ module.exports = async conn => {
     }
     if (
       conn.req.body.hasOwnProperty('attachment') &&
-      conn.req.body.hasOwnProperty('Phone Number')
+      conn.req.body.attachment.hasOwnProperty('Phone Number')
     ) {
       promises.push(
         rootCollections.activities
           .where('template', '==', conn.req.body.template)
           .where(
-            'attachment.Name.value',
+            'attachment.Phone Number.value',
             '==',
-            conn.req.body.attachment.Name.value,
+            conn.req.body.attachment['Phone Number'].value,
           )
           .where('status', '==', 'CONFIRMED')
           .where('officeId', '==', conn.req.body.officeId)
