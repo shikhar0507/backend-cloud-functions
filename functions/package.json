@@ -63,6 +63,7 @@
     "xml2js": "^0.4.23"
   },
   "devDependencies": {
+    "prettier": "^2.0.4",
     "buddy.js": "^0.9.3",
     "eslint": "^5.0.0",
     "eslint-config-prettier": "^6.10.0",
@@ -72,7 +73,6 @@
     "firebase-functions-test": "^0.1.7",
     "husky": "^4.2.3",
     "mocha": "^6.2.0",
-    "prettier": "^1.19.1",
     "sinon": "^8.1.1"
   },
   "prettier": {
