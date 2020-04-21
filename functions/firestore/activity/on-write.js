@@ -87,7 +87,7 @@ const growthFileMsIntegration = async change => {
 
   return growthfileMsRequester({
     method: msRequestTypes.ACTIVITY,
-    payload: JSON.stringify(activityData),
+    payload:JSON.stringify(activityData),
     resourcePath: msEndpoints.ACTIVITY,
   });
 };
@@ -714,14 +714,7 @@ const handleSubscription = async locals => {
   }
 
   batch.set(subscriptionDocRef, subscriptionDocData, { merge: true });
-  batch.set(
-    rootCollections.profiles
-      .doc(newSubscriber)
-      .collection(subcollectionNames.SUBSCRIPTIONS)
-      .doc('template_' + locals.change.after.get('attachment.Template.value')),
-    locals.change.after.data(),
-    { merge: true },
-  );
+
   const newSubscriberAuth = await getAuth(newSubscriber);
 
   if (newSubscriberAuth.uid) {
