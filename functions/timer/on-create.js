@@ -244,7 +244,7 @@ module.exports = async timerDoc => {
     await deleteInstantDocs();
 
     return growthfileMsRequester({
-      payload: null,
+      payload: {},
       method: msRequestTypes.TIMER,
       resourcePath: msEndpoints.TIMER,
     });
