@@ -1299,7 +1299,7 @@ const attendanceConflictHandler = async ({ schedule, phoneNumber, office }) => {
  * @param code
  */
 const checkLimitHelper = ({ locals, sendResponse, code }) => {
-  locals.firestoreReadsTwo.checkLimit = [];
+  locals.dbReadsII.checkLimit = [];
   const { template } = locals.conn.req.body;
   if (template === 'leave') {
     const startMoment = momentTz(locals.conn.req.body.schedule[0].endTime);
