@@ -37,9 +37,7 @@ const {
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
-  getCanEditValue,
   checkLimitHelper,
-  activityCreator,
 } = require('./helper');
 const {
   millitaryToHourMinutes,
@@ -50,6 +48,7 @@ const {
   getScheduleDates,
   getAdjustedGeopointsFromVenue,
   enumerateDaysBetweenDates,
+  getCanEditValue,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
@@ -60,6 +59,7 @@ const googleMapsClient = require('@google/maps').createClient({
   key: env.mapsApiKey,
   Promise: Promise,
 });
+const url = require('url');
 
 const getCustomerVenue = ({ templateDoc, firstResult, placeApiResult }) => {
   return templateDoc.get('venue').map((venueDescriptor, index) => {
@@ -260,9 +260,8 @@ const getRoleDocument = locals => {
   }
 };
 
-const getAction = conn => {
-  const method = conn.req.body.method;
-  switch (method) {
+const getAction = locals => {
+  switch (locals.method) {
     case 'create':
       return httpsActions.create;
     case 'share':
@@ -355,7 +354,7 @@ const createDocsWithBatch = async (conn, locals) => {
       );
     }
   }
-
+  console.log(activityObject.schedule, `schedule`);
   if (activityObject.schedule.length > 0) {
     activityObject.relevantTime = getRelevantTime(activityObject.schedule);
     activityObject.scheduleDates = getScheduleDates(activityObject.schedule);
@@ -408,16 +407,12 @@ const createDocsWithBatch = async (conn, locals) => {
     activityObject.adjustedGeopoints = adjustedGeopoints[0];
   }
 
-  // getting the activityData Object from common helper function
-  // done to ensure consistency
-
-  const activityData = activityCreator(activityObject);
-
+  delete activityObject.relevantTime;
   const addendumDocObject = {
     date,
     month,
     year,
-    activityData: activityData,
+    activityData: activityObject,
     user: conn.requester.phoneNumber,
     userDisplayName: conn.requester.displayName,
     uid: conn.requester.uid,
@@ -428,7 +423,7 @@ const createDocsWithBatch = async (conn, locals) => {
      * in the `comment`.
      */
     share: Array.from(new Set(conn.req.body.share)),
-    action: getAction(conn, locals),
+    action: getAction(locals),
     template: conn.req.body.template,
     location: getGeopointObject(conn.req.body.geopoint),
     timestamp: Date.now(),
@@ -462,6 +457,9 @@ const createDocsWithBatch = async (conn, locals) => {
       'lastTimestamp',
     );
   }
+  console.log({
+    activity: JSON.stringify(activityObject),
+  });
 
   batch.set(addendumDocRef, addendumDocObject);
   batch.set(activityRef, activityObject);
@@ -625,27 +623,27 @@ const checkDbReadsII = async (conn, locals, result) => {
     const amount = conn.req.body.attachment.Amount.value;
 
     if (!claimType) {
-      proceed=true;
+      proceed = true;
     } else {
       if (Number(amount || 0) < 1) {
-        proceed=false;
+        proceed = false;
         return sendResponse(
-            conn,
-            code.badRequest,
-            `Amount should be a positive number`,
+          conn,
+          code.badRequest,
+          `Amount should be a positive number`,
         );
       }
 
       const timezone = locals.officeDoc.get('attachment.Timezone.value');
       const momentNow = momentTz().tz(timezone);
       const monthStart = momentNow
-          .clone()
-          .startOf('month')
-          .valueOf();
+        .clone()
+        .startOf('month')
+        .valueOf();
       const monthEnd = momentNow
-          .clone()
-          .endOf('month')
-          .valueOf();
+        .clone()
+        .endOf('month')
+        .valueOf();
 
       const [
         claimActivities,
@@ -660,9 +658,9 @@ const checkDbReadsII = async (conn, locals, result) => {
       claimActivities.forEach(doc => {
         // Start Time of the schedule has a higher priority.
         const isCancelled = doc.get('status') === 'CANCELLED';
-        const [{startTime}] = doc.get('schedule');
+        const [{ startTime }] = doc.get('schedule');
         const createTime = momentTz(startTime || doc.createTime.toMillis()).tz(
-            timezone,
+          timezone,
         );
 
         const createdThisMonth = createTime.isBetween(monthStart, monthEnd);
@@ -673,14 +671,14 @@ const checkDbReadsII = async (conn, locals, result) => {
       });
 
       if (
-          currencyJs(claimsThisMonth).add(amount).value >
-          currencyJs(monthlyLimit).value
+        currencyJs(claimsThisMonth).add(amount).value >
+        currencyJs(monthlyLimit).value
       ) {
-        proceed=false;
+        proceed = false;
         return sendResponse(
-            conn,
-            code.conflict,
-            `Cannot create a claim. Max Claims (${monthlyLimit}) amount this month.`,
+          conn,
+          code.conflict,
+          `Cannot create a claim. Max Claims (${monthlyLimit}) amount this month.`,
         );
       }
     }
@@ -796,13 +794,12 @@ const handleAttachmentArrays = async (conn, locals, result) => {
 
 const handleAttachment = (conn, locals) => {
   const options = {
-    firestoreReadsTwo: locals.firestoreReadsTwo,
+    dbReadsII: locals.dbReadsII,
     bodyAttachment: conn.req.body.attachment,
     templateAttachment: locals.templateDoc.get('attachment'),
     template: conn.req.body.template,
     officeId: locals.officeDoc.id,
     office: conn.req.body.office,
-    dbReadsII: locals.dbReadsII,
   };
 
   const result = filterAttachment(options);
@@ -1000,11 +997,7 @@ const validatePermissions = ({
 const checkProfile = (profileDoc, conn) => {
   // adding this now for consistency, eventually this profile
   // auth uid check will move to respective files
-  if (profileDoc.get('uid') !== conn.requester.uid) {
-    // sendResponse(conn, code.unauthorized, 'Invalid request');
-    // return false;
-  }
-  return true;
+  return profileDoc.get('uid') === conn.requester.uid;
 };
 
 const attachDatesArray = ({ schedule }) => {
@@ -1027,33 +1020,43 @@ const createLocals = async (
     existingActivityResult,
     sameNameResult,
     samePhoneNumberResult,
+    assigneesResult,
   ],
+  method,
 ) => {
-  const [profileDoc] = profileResult.docs;
-  if (!checkProfile(profileDoc, conn)) {
-    return;
+  if (sameNameResult) {
+    console.log(sameNameResult, null === sameNameResult);
+  }
+  if (profileResult.exists) {
+    if (!checkProfile(profileResult, conn)) {
+      return sendResponse(conn, code.forbidden, 'Uid mismatch');
+    }
+  } else {
+    return sendResponse(conn, code.forbidden, 'Profile doesnt exist');
+  }
+  if (!assigneesResult.empty) {
+    const assigneesExisting = assigneesResult.docs.map(document => {
+      return document.id;
+    });
+    assigneesExisting.toString();
   }
   const [subscriptionDoc] = subscriptionQueryResult.docs;
   const [templateDoc] = templateQueryResult.docs;
   const [officeDoc] = officeQueryResult.docs;
 
-  let activityExists = null;
-  if (existingActivityResult && !existingActivityResult.empty) {
-    activityExists = true;
-  }
-  if (activityExists) {
+  if (method !== 'create') {
     if (
-        samePhoneNumberResult &&
-        !samePhoneNumberResult.empty &&
-        samePhoneNumberResult.docs[0].id !== conn.req.body.activityId
+      samePhoneNumberResult &&
+      !samePhoneNumberResult.empty &&
+      samePhoneNumberResult.docs[0].id !== conn.req.body.activityId
     ) {
       return sendResponse(
-          conn,
-          code.forbidden,
-          `Another confirmed activity with same PhoneNumber found`,
+        conn,
+        code.forbidden,
+        `Another confirmed activity with same PhoneNumber found`,
       );
     }
-    if (!getCanEditValue(existingActivityResult.docs[0].data(), conn.requester)) {
+    if (!getCanEditValue(existingActivityResult, conn.requester)) {
       return sendResponse(
         conn,
         code.forbidden,
@@ -1068,39 +1071,21 @@ const createLocals = async (
       office: conn.req.body.office,
       template: conn.req.body.template,
     });
-    if (v!==null) {
+    if (v) {
       return sendResponse(conn, code.unauthorized, v);
     }
   }
 
-  if (
-    sameNameResult &&
-    !sameNameResult.empty &&
-    sameNameResult.docs.length > 0
-  ) {
-    // if another activity with same name if found which is CONFIRMED,
-    // then dont allow activity status to be CONFIRMED
-    let currentActivityId = null;
-    if (existingActivityResult.exists) {
-      currentActivityId = existingActivityResult.id;
-    }
-    let exit = false;
-    sameNameResult.docs.forEach(doc => {
-      if (currentActivityId && doc.id === currentActivityId) return;
-      exit = true;
-      sendResponse(
-        conn,
-        code.conflict,
-        'Another activity with same name is CONFIRMED',
-      );
-    });
-    if (exit) return;
-  }
   if (subscriptionDoc) {
-    conn.req.body.share.push(...subscriptionDoc.get('include'));
+    if (conn.req.body.share) {
+      const include = subscriptionDoc.get('include');
+      if (include) {
+        conn.req.body.share.push(...include);
+      }
+    }
   }
   const mainActivityData = {};
-  if (activityExists) {
+  if (method !== 'create') {
     Object.assign(
       mainActivityData,
       existingActivityResult.data(),
@@ -1110,15 +1095,16 @@ const createLocals = async (
     Object.assign(mainActivityData, conn.req.body);
   }
   const locals = {
+    method,
     existingActivityResult,
     newActivity: conn.req.body,
-    firestoreReadsTwo: { shouldExist: [] },
+    dbReadsII: { shouldExist: [] },
     templateDoc,
     officeDoc,
     subscriptionDoc,
     mainActivityData,
     conn,
-    profileDoc,
+    profileDoc: profileResult,
   };
 
   if (!conn.requester.isSupportRequest) {
@@ -1151,9 +1137,9 @@ const createLocals = async (
   Object.assign(conn.req.body, mainActivityData);
   if (templateDoc.get('dateConflict') === true) {
     mainActivityData.dateConflict = true;
-    locals.firestoreReadsTwo.dateConflict = [];
+    locals.dbReadsII.dateConflict = [];
     mainActivityData.dates.forEach(date => {
-      locals.firestoreReadsTwo.dateConflict.push(
+      locals.dbReadsII.dateConflict.push(
         rootCollections.profiles
           .doc(conn.requester.phoneNumber)
           .collection(subcollectionNames.ACTIVITIES)
@@ -1187,8 +1173,10 @@ const createLocals = async (
 };
 
 module.exports = async conn => {
+  const { pathname } = url.parse(conn.req.url);
+  const type = pathname.replace(/^\/|\/$/g, '');
   // any activity write/update should be PUT|POST
-  if (['PUT', 'POST'].indexOf(conn.req.method) !== -1) {
+  if (['PUT', 'POST'].indexOf(conn.req.method) === -1) {
     return sendResponse(
       conn,
       code.methodNotAllowed,
@@ -1196,23 +1184,26 @@ module.exports = async conn => {
         ' endpoint. Use POST/PUT',
     );
   }
-  let bodyResult;
-  const method = conn.req.body.method;
-  switch (method) {
-    case 'create':
+  let bodyResult, method;
+  switch (type) {
+    case 'activities/create':
+      method = 'create';
       bodyResult = isValidRequestBody(conn.req.body, httpsActions.create);
       break;
-    case 'share':
-      bodyResult = isValidRequestBody(conn.req.body, httpsActions.share);
-      break;
-    case 'update':
+    case 'activities/update':
+      method = 'update';
       bodyResult = isValidRequestBody(conn.req.body, httpsActions.update);
       break;
-    case 'change-status':
+    case 'activities/change-status':
+      method = 'change-status';
       bodyResult = isValidRequestBody(conn.req.body, httpsActions.changeStatus);
       break;
+    case 'activities/share':
+      method = 'share';
+      bodyResult = isValidRequestBody(conn.req.body, httpsActions.share);
+      break;
     default:
-      throw new Error('Not allowed');
+      throw new Error(conn.method);
   }
 
   if (!bodyResult.isValid) {
@@ -1221,12 +1212,13 @@ module.exports = async conn => {
 
   try {
     const promises = [
-      rootCollections.profiles.doc(conn.requester.phoneNumber),
+      rootCollections.profiles.doc(conn.requester.phoneNumber).get(),
       rootCollections.profiles
         .doc(conn.requester.phoneNumber)
         .collection(subcollectionNames.SUBSCRIPTIONS)
         .where('office', '==', conn.req.body.office)
-        .where('template', '==', conn.req.body.template)
+        .where('template', '==', 'subscription')
+        .where('attachment.Template.value', '==', conn.req.body.template)
         .where('status', '==', 'CONFIRMED')
         .limit(1)
         .get(),
@@ -1241,10 +1233,7 @@ module.exports = async conn => {
     ];
     if (conn.req.body.activityId) {
       promises.push(
-        rootCollections
-            .activities
-            .doc(conn.req.body.activityId)
-          .get(),
+        rootCollections.activities.doc(conn.req.body.activityId).get(),
       );
     } else {
       promises.push(Promise.resolve(null));
@@ -1289,8 +1278,19 @@ module.exports = async conn => {
     } else {
       promises.push(Promise.resolve(null));
     }
-    return createLocals(conn, await Promise.all(promises));
+    if (conn.req.body.activityId) {
+      promises.push(
+        rootCollections.activities
+          .doc(conn.req.body.activityId)
+          .collection('Assignees')
+          .get(),
+      );
+    } else {
+      promises.push(Promise.resolve(null));
+    }
+    return createLocals(conn, await Promise.all(promises), method);
   } catch (error) {
+    console.error(error);
     return handleError(conn, error);
   }
 };
