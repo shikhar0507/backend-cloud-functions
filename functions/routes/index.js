@@ -243,12 +243,41 @@ module.exports = req => {
      * {}
      * `
      */
+    /**
+     * New Endpoints for /profile
+     */
+    case 'profile':
+      func = require('../firestore/profile/index');
+      break;
+    case 'profile/fcmToken':
+      func = require('../firestore/profile/fcmToken');
+      break;
+    case 'profile/device':
+      func = require('../firestore/profile/device');
+      break;
+    case 'profile/acquisition':
+      func = require('../firestore/profile/acquisition');
+      break;
+    case 'profile/pan':
+      func = require('../firestore/profile/pan');
+      break;
+    case 'profile/aadhar':
+      func = require('../firestore/profile/aadhar');
+      break;
+    case 'profile/linkedAccount':
+      func = require('../firestore/profile/linkedAccount');
+      break;
+    case 'profile/image':
+      func = require('../firestore/profile/image');
+      break;
+    // /profile services end
     case 'services/idProof':
       func = require('../services/id-proof');
       break;
     case 'services/users':
       func = require('../services/users');
       break;
+
     /**
      * 404 not found
      */
