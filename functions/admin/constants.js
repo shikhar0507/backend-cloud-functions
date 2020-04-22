@@ -30,7 +30,7 @@ const msRequestTypes = {
 
 /** Api Endpoints for growthfileMS */
 const msEndpoints = {
-  ACTIVITY: '/activity',
+  ACTIVITY: 'activity',
   TIMER: 'timer',
 };
 
