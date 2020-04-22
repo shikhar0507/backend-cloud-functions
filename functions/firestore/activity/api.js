@@ -298,27 +298,27 @@ const createDocsWithBatch = async (conn, locals) => {
     .doc(locals.officeDoc.id)
     .collection(subcollectionNames.ADDENDUM)
     .doc();
-
   let activityObject = {
     timestamp: Date.now(),
-    venue: conn.req.body.venue,
-    schedule: conn.req.body.schedule,
-    attachment: conn.req.body.attachment,
+    venue: locals.mainActivityData.venue,
+    schedule: locals.mainActivityData.schedule,
+    attachment: locals.mainActivityData.attachment,
     dates: locals.mainActivityData.dates,
     report: locals.templateDoc.get('report') || null,
-    /** Activities are not created with CANCELLED status */
-    isCancelled: false,
   };
   if (locals.templateDoc.get('dateConflict') === true) {
     activityObject.dateConflict = true;
   }
+  if (locals.templateDoc.get('checkLimit')) {
+    activityObject.checkLimit = locals.templateDoc.get('checkLimit');
+  }
 
   if (conn.req.body.template === 'customer') {
-    const { address } = conn.req.body.venue[0];
+    const { address } = locals.mainActivityData.venue[0];
 
     const placesQueryResult = await getCustomerObject({
       address,
-      location: conn.req.body.attachment.Name.value,
+      location: locals.mainActivityData.attachment.Name.value,
     });
 
     activityObject = placesQueryResult;
@@ -334,13 +334,13 @@ const createDocsWithBatch = async (conn, locals) => {
     const {
       docs: [probablyExistingCustomer],
     } = await rootCollections.activities
-      .where('office', '==', conn.req.body.office)
+      .where('office', '==', locals.mainActivityData.office)
       .where('template', '==', 'customer')
       .where('status', '==', 'CONFIRMED')
       .where(
         'attachment.Name.value',
         '==',
-        activityObject.attachment.Name.value,
+        locals.mainActivityData.attachment.Name.value,
       )
       .limit(1)
       .get();
@@ -422,24 +422,24 @@ const createDocsWithBatch = async (conn, locals) => {
      * the request body `share` to avoid some users being missed
      * in the `comment`.
      */
-    share: Array.from(new Set(conn.req.body.share)),
+    share: Array.from(new Set(locals.mainActivityData.share)),
     action: getAction(locals),
-    template: conn.req.body.template,
-    location: getGeopointObject(conn.req.body.geopoint),
+    template: locals.mainActivityData.template,
+    location: getGeopointObject(locals.mainActivityData.geopoint),
     timestamp: Date.now(),
-    userDeviceTimestamp: conn.req.body.timestamp,
+    userDeviceTimestamp: locals.mainActivityData.timestamp,
     /** The `activityId` field is required by `addendumOnCreate` */
     activityId: activityRef.id,
     activityName: activityObject.activityName,
     isAdminRequest: conn.requester.isAdminRequest,
     isSupportRequest: conn.requester.isSupportRequest,
-    geopointAccuracy: conn.req.body.geopoint.accuracy || null,
-    provider: conn.req.body.geopoint.provider || null,
+    geopointAccuracy: locals.mainActivityData.geopoint.accuracy || null,
+    provider: locals.mainActivityData.geopoint.provider || null,
     roleDoc: getRoleDocument(locals),
   };
 
   if (
-    conn.req.body.template === 'check-in' &&
+    locals.mainActivityData.template === 'check-in' &&
     locals.subscriptionDoc &&
     locals.subscriptionDoc.get('roleDoc')
   ) {
@@ -447,7 +447,7 @@ const createDocsWithBatch = async (conn, locals) => {
   }
 
   if (
-    conn.req.body.template === 'check-in' &&
+    locals.mainActivityData.template === 'check-in' &&
     locals.subscriptionDoc &&
     locals.subscriptionDoc.get('lastGeopoint')
   ) {
@@ -465,7 +465,7 @@ const createDocsWithBatch = async (conn, locals) => {
   batch.set(activityRef, activityObject);
 
   // handle new assignees
-  const newAssigneeSet = new Set(conn.req.body.share);
+  const newAssigneeSet = new Set(locals.mainActivityData.share);
   newAssigneeSet.forEach(assignee => {
     batch.set(
       activityRef.collection(subcollectionNames.ASSIGNEES).doc(assignee),
@@ -510,7 +510,7 @@ const createDocsWithBatch = async (conn, locals) => {
 };
 
 const handleAssignees = async (conn, locals) => {
-  if (conn.req.body.share.length === 0) {
+  if (locals.mainActivityData.share.length === 0) {
     return sendResponse(conn, code.badRequest, `No assignees found`);
   }
   return createDocsWithBatch(conn, locals);
@@ -525,7 +525,7 @@ const checkDbReadsII = async (conn, locals, result) => {
         proceed = false;
         const day =
           dateConflictResult.query._queryOptions.fieldFilters[2].value;
-        sendResponse(
+        return sendResponse(
           conn,
           code.conflict,
           'An Attendance Regularisation or Leave has already been marked on ' +
@@ -551,11 +551,11 @@ const checkDbReadsII = async (conn, locals, result) => {
     });
   }
   if (!proceed) return;
-  if (locals.conn.req.body.template === 'leave') {
+  if (locals.mainActivityData.template === 'leave') {
     locals.maxLeavesAllowed = Number.POSITIVE_INFINITY;
     locals.leavesTakenThisYear = 0;
 
-    if (!conn.req.body.attachment['Leave Type'].value) {
+    if (!locals.mainActivityData.attachment['Leave Type'].value) {
       locals.maxLeavesAllowed = 20;
     }
 
@@ -573,10 +573,17 @@ const checkDbReadsII = async (conn, locals, result) => {
     leaveActivityQuery.forEach(doc => {
       const [{ startTime, endTime }] = doc.get('schedule');
       locals.leavesTakenThisYear += momentTz(
-        momentTz(endTime).endOf('day').valueOf(),
-      ).diff(momentTz(startTime).startOf('day').valueOf(), 'days');
+        momentTz(endTime)
+          .endOf('day')
+          .valueOf(),
+      ).diff(
+        momentTz(startTime)
+          .startOf('day')
+          .valueOf(),
+        'days',
+      );
     });
-    const leavesTakenThisTime = locals.conn.req.body.dates.length;
+    const leavesTakenThisTime = locals.mainActivityData.dates.length;
     if (
       locals.leavesTakenThisYear + leavesTakenThisTime >
       locals.maxLeavesAllowed
@@ -586,15 +593,13 @@ const checkDbReadsII = async (conn, locals, result) => {
         code.conflict,
         `Cannot create leave` +
           ` You have exceeded the limit for leave` +
-          ` application under ${conn.req.body.attachment['Leave Type'].value}` +
-          ` by ${
-            locals.maxLeavesAllowed -
-            (locals.leavesTakenThisYear + leavesTakenThisTime)
-          }`,
+          ` application under ${locals.mainActivityData.attachment['Leave Type'].value}` +
+          ` by ${locals.maxLeavesAllowed -
+            (locals.leavesTakenThisYear + leavesTakenThisTime)}`,
       );
     }
 
-    const [firstSchedule] = conn.req.body.schedule;
+    const [firstSchedule] = locals.mainActivityData.schedule;
     const { startTime } = firstSchedule;
 
     // leave is for a date which is 2 months back => don't allow
@@ -614,8 +619,8 @@ const checkDbReadsII = async (conn, locals, result) => {
     }
   }
   if (locals.conn.req.body.template === 'claim') {
-    const claimType = conn.req.body.attachment['Claim Type'].value;
-    const amount = conn.req.body.attachment.Amount.value;
+    const claimType = locals.mainActivityData.attachment['Claim Type'].value;
+    const amount = locals.mainActivityData.attachment.Amount.value;
 
     if (!claimType) {
       proceed = true;
@@ -631,8 +636,14 @@ const checkDbReadsII = async (conn, locals, result) => {
 
       const timezone = locals.officeDoc.get('attachment.Timezone.value');
       const momentNow = momentTz().tz(timezone);
-      const monthStart = momentNow.clone().startOf('month').valueOf();
-      const monthEnd = momentNow.clone().endOf('month').valueOf();
+      const monthStart = momentNow
+        .clone()
+        .startOf('month')
+        .valueOf();
+      const monthEnd = momentNow
+        .clone()
+        .endOf('month')
+        .valueOf();
 
       const [
         claimActivities,
@@ -675,7 +686,13 @@ const checkDbReadsII = async (conn, locals, result) => {
   if (!proceed) return;
   return handleAssignees(conn, locals, result);
 };
-
+/**
+ *
+ * @param conn
+ * @param locals {{ activityId:any, dbReadsII: {shouldExist: []}, officeDoc: *, conn: *, method: *, templateDoc: *, subscriptionDoc: *, profileDoc: *, mainActivityData: *}}
+ * @param result
+ * @returns {Promise<undefined|void|*>}
+ */
 const handleDbReadsII = async (conn, locals, result) => {
   let stageTwo = false;
   if (
@@ -707,7 +724,9 @@ const handleDbReadsII = async (conn, locals, result) => {
     }
     await Promise.all(queryPromisesList);
     if (locals.dbReadsII.hasOwnProperty('shouldExist')) {
-      locals.dbReadsII = await Promise.all(locals.dbReadsII.shouldExist);
+      locals.dbReadsII.shouldExist = await Promise.all(
+        locals.dbReadsII.shouldExist,
+      );
     }
     if (locals.dbReadsII.hasOwnProperty('dateConflict')) {
       locals.dbReadsII.dateConflict = await Promise.all(
@@ -734,7 +753,7 @@ const handleDbReadsII = async (conn, locals, result) => {
   return handleAssignees(conn, locals, result);
 };
 const handleAttachmentArrays = async (conn, locals, result) => {
-  const { attachment } = conn.req.body;
+  const { attachment } = locals.mainActivityData;
 
   for (const [, { value: values, type }] of Object.entries(attachment)) {
     if (!Array.isArray(values)) {
@@ -749,7 +768,7 @@ const handleAttachmentArrays = async (conn, locals, result) => {
         return sendResponse(
           conn,
           code.badRequest,
-          `Invalid date found in ${conn.req.body.template}`,
+          `Invalid date found in ${locals.mainActivityData.template}`,
         );
       }
 
@@ -757,7 +776,7 @@ const handleAttachmentArrays = async (conn, locals, result) => {
         return sendResponse(
           conn,
           code.badRequest,
-          `Invalid quantity found in ${conn.req.body.template}`,
+          `Invalid quantity found in ${locals.mainActivityData.template}`,
         );
       }
 
@@ -765,7 +784,7 @@ const handleAttachmentArrays = async (conn, locals, result) => {
         return sendResponse(
           conn,
           code.badRequest,
-          `Invalid rate found in ${conn.req.body.template}`,
+          `Invalid rate found in ${locals.mainActivityData.template}`,
         );
       }
       locals.dbReadsII.shouldExist.push(
@@ -780,15 +799,20 @@ const handleAttachmentArrays = async (conn, locals, result) => {
   }
   return handleDbReadsII(conn, locals, result);
 };
-
+/**
+ *
+ * @param conn
+ * @param locals {{ activityId:any, dbReadsII: {shouldExist: []}, officeDoc: *, conn: *, method: *, templateDoc: *, subscriptionDoc: *, profileDoc: *, mainActivityData: *}}
+ * @returns {Promise<void|undefined|*>|void}
+ */
 const handleAttachment = (conn, locals) => {
   const options = {
     dbReadsII: locals.dbReadsII,
-    bodyAttachment: conn.req.body.attachment,
+    bodyAttachment: locals.mainActivityData.attachment,
     templateAttachment: locals.templateDoc.get('attachment'),
-    template: conn.req.body.template,
+    template: locals.mainActivityData.template,
     officeId: locals.officeDoc.id,
-    office: conn.req.body.office,
+    office: locals.mainActivityData.office,
   };
 
   const result = filterAttachment(options);
@@ -801,7 +825,8 @@ const handleAttachment = (conn, locals) => {
    * All phone numbers in the attachment are added to the
    * activity assignees.
    */
-  conn.req.body.share.push(...result.phoneNumbers);
+  locals.mainActivityData.share = locals.mainActivityData.share || [];
+  locals.mainActivityData.share.push(...result.phoneNumbers);
 
   const { isBase64, base64Field } = result;
 
@@ -1013,9 +1038,8 @@ const createLocals = async (
   ],
   method,
 ) => {
-  if (sameNameResult) {
-    console.log(sameNameResult, null === sameNameResult);
-  }
+  assigneesResult.toString();
+  let mainActivityData;
   if (profileResult.exists) {
     if (!checkProfile(profileResult, conn)) {
       return sendResponse(conn, code.forbidden, 'Uid mismatch');
@@ -1023,27 +1047,13 @@ const createLocals = async (
   } else {
     return sendResponse(conn, code.forbidden, 'Profile doesnt exist');
   }
-  if (!assigneesResult.empty) {
-    const assigneesExisting = assigneesResult.docs.map(document => {
-      return document.id;
-    });
-    assigneesExisting.toString();
-  }
   const [subscriptionDoc] = subscriptionQueryResult.docs;
   const [templateDoc] = templateQueryResult.docs;
   const [officeDoc] = officeQueryResult.docs;
 
   if (method !== 'create') {
-    if (
-      samePhoneNumberResult &&
-      !samePhoneNumberResult.empty &&
-      samePhoneNumberResult.docs[0].id !== conn.req.body.activityId
-    ) {
-      return sendResponse(
-        conn,
-        code.forbidden,
-        `Another confirmed activity with same PhoneNumber found`,
-      );
+    if (!existingActivityResult.exists) {
+      return sendResponse(conn, code.badRequest, 'Activity not found');
     }
     if (!getCanEditValue(existingActivityResult, conn.requester)) {
       return sendResponse(
@@ -1052,6 +1062,23 @@ const createLocals = async (
         `You cannot edit this activity`,
       );
     }
+    if (
+      sameNameResult &&
+      !sameNameResult.empty &&
+      existingActivityResult.id !== sameNameResult.docs[0].id &&
+      conn.req.body.status === 'CONFIRMED'
+    ) {
+      return sendResponse(
+        conn,
+        code.forbidden,
+        `Another CONFIRMED activity with same Name found`,
+      );
+    }
+    mainActivityData = Object.assign(
+      {},
+      existingActivityResult.data(),
+      conn.req.body,
+    );
   } else {
     const v = validatePermissions({
       officeDoc,
@@ -1063,38 +1090,43 @@ const createLocals = async (
     if (v) {
       return sendResponse(conn, code.unauthorized, v);
     }
-  }
-
-  if (subscriptionDoc) {
-    if (conn.req.body.share) {
-      const include = subscriptionDoc.get('include');
-      if (include) {
-        conn.req.body.share.push(...include);
-      }
+    if (samePhoneNumberResult && !samePhoneNumberResult.empty) {
+      return sendResponse(
+        conn,
+        code.forbidden,
+        `Activity with same PhoneNumber found`,
+      );
     }
+    if (
+      sameNameResult &&
+      !sameNameResult.empty &&
+      conn.req.body.status === 'CONFIRMED'
+    ) {
+      return sendResponse(
+        conn,
+        code.forbidden,
+        'A CONFIRMED activity with same Name exists, cannot create this activity',
+      );
+    }
+    mainActivityData = Object.assign({}, conn.req.body);
   }
-  const mainActivityData = {};
-  if (method !== 'create') {
-    Object.assign(
-      mainActivityData,
-      existingActivityResult.data(),
-      conn.req.body,
-    );
-  } else {
-    Object.assign(mainActivityData, conn.req.body);
-  }
+  /**
+   * Type definition for locals
+   * @type {{ activityId:any, dbReadsII: {shouldExist: []}, officeDoc: *, conn: *, method: *, templateDoc: *, subscriptionDoc: *, profileDoc: *, mainActivityData: *}}
+   */
   const locals = {
     method,
-    existingActivityResult,
-    newActivity: conn.req.body,
     dbReadsII: { shouldExist: [] },
     templateDoc,
     officeDoc,
     subscriptionDoc,
-    mainActivityData,
     conn,
     profileDoc: profileResult,
+    mainActivityData,
   };
+  if (existingActivityResult) {
+    locals.activityId = existingActivityResult.id;
+  }
 
   if (!conn.requester.isSupportRequest) {
     conn.req.body.share.push(conn.requester.phoneNumber);
@@ -1112,27 +1144,30 @@ const createLocals = async (
   }
 
   const scheduleValidationResult = validateSchedules(
-    mainActivityData,
+    locals.mainActivityData,
     locals.templateDoc.get('schedule'),
   );
   if (!scheduleValidationResult.isValid) {
     sendResponse(conn, code.badRequest, scheduleValidationResult.message);
     return;
   }
-  conn.req.body.schedule = scheduleValidationResult.schedules;
-  mainActivityData.dates = attachDatesArray({
-    schedule: conn.req.body.schedule,
-  });
-  Object.assign(conn.req.body, mainActivityData);
-  if (templateDoc.get('dateConflict') === true) {
-    mainActivityData.dateConflict = true;
+  if (locals.mainActivityData.hasOwnProperty('schedule')) {
+    locals.mainActivityData.dates = attachDatesArray({
+      schedule: locals.mainActivityData.schedule,
+    });
+  }
+  if (
+    templateDoc.hasOwnProperty('dateConflict') &&
+    templateDoc.get('dateConflict') === true
+  ) {
+    locals.mainActivityData.dateConflict = true;
     locals.dbReadsII.dateConflict = [];
-    mainActivityData.dates.forEach(date => {
+    locals.mainActivityData.dates.forEach(date => {
       locals.dbReadsII.dateConflict.push(
         rootCollections.profiles
           .doc(conn.requester.phoneNumber)
           .collection(subcollectionNames.ACTIVITIES)
-          .where('office', '==', conn.req.body.office)
+          .where('office', '==', locals.mainActivityData.office)
           .where('status', '==', 'CONFIRMED')
           .where('dates', 'array-contains', date)
           .where('dateConflict', '==', true)
@@ -1140,24 +1175,26 @@ const createLocals = async (
       );
     });
   } else {
-    mainActivityData.dateConflict = false;
+    locals.mainActivityData.dateConflict = false;
   }
   // the following code accept a limit parameter and fetches the appropriate activities to allow
   // limit based checking
   // underway
   if (templateDoc.get('checkLimit')) {
-    mainActivityData.checkLimit = templateDoc.get('checkLimit');
-    if (!checkLimitHelper({ locals, sendResponse, code })) return;
+    locals.mainActivityData.checkLimit = templateDoc.get('checkLimit');
+    if (!checkLimitHelper({ locals, sendResponse, code })) {
+      return;
+    }
   }
   const venueValidationResult = validateVenues(
-    conn.req.body,
+    locals.mainActivityData,
     locals.templateDoc.get('venue'),
   );
   if (!venueValidationResult.isValid) {
     sendResponse(conn, code.badRequest, venueValidationResult.message);
     return;
   }
-  conn.req.body.venue = venueValidationResult.venues;
+  mainActivityData.venue = venueValidationResult.venues;
   return handleAttachment(conn, locals);
 };
 
@@ -1241,7 +1278,7 @@ module.exports = async conn => {
           )
           .where('status', '==', 'CONFIRMED')
           .where('officeId', '==', conn.req.body.officeId)
-          .limit(2)
+          .limit(1)
           .get(),
       );
     } else {
@@ -1259,7 +1296,6 @@ module.exports = async conn => {
             '==',
             conn.req.body.attachment['Phone Number'].value,
           )
-          .where('status', '==', 'CONFIRMED')
           .where('officeId', '==', conn.req.body.officeId)
           .limit(1)
           .get(),
