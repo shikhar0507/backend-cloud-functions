@@ -6,7 +6,7 @@
  * to deal in the Software without restriction, including without limitation
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
+ * Software is furnished to do so, subject to the following conditions: 
  *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
@@ -28,21 +28,9 @@ const { db, rootCollections } = require('../../admin/admin');
 const { code } = require('../../admin/responses');
 
 const validator = ({ source, medium, campaign, office, action }) => {
-  if (!(source && source !== '')) {
-    return 'source cannot be empty';
-  }
-  if (!(medium && medium !== '')) {
-    return 'medium cannot be empty';
-  }
-  if (!(campaign && campaign !== '')) {
-    return 'campaign cannot be empty';
-  }
-  if (!(office && office !== '')) {
-    return 'office cannot be empty';
-  }
-  if (!(action && action !== '')) {
-    return 'action cannot be empty';
-  }
+  const validatedObject = {source,medium,campaign,office,action};
+  // these are currently optional , may be validated in future
+  validatedObject.toString();
   return false;
 };
 

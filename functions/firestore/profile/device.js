@@ -37,6 +37,14 @@ const validator = ({
   radioVersion,
   idbVersion,
 }) => {
+
+  // making all fields optional as told by UI, may be enforced in future
+  // eslint-disable-next-line no-constant-condition
+  if (true) {
+    return false;
+  }
+
+
   if (!(id && id !== '')) {
     return 'id cannot be empty';
   }
