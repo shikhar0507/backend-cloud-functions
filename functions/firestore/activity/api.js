@@ -249,7 +249,7 @@ const getRoleObject = subscriptionDoc => {
 };
 
 const getRoleDocument = locals => {
-  const office = locals.conn.req.body.office;
+  const office = locals.mainActivityData.office;
   if (
     locals.profileDoc.get('roleReferences') &&
     locals.profileDoc.get('roleReferences')[office]
@@ -285,7 +285,7 @@ const createDocsWithBatch = async (conn, locals) => {
     .tz(timezone)
     .toObject();
 
-  conn.req.body.share.forEach(phoneNumber => {
+  locals.mainActivityData.share.forEach(phoneNumber => {
     const addToInclude = true;
     canEditMap[phoneNumber] = null;
     batch.set(
@@ -299,6 +299,7 @@ const createDocsWithBatch = async (conn, locals) => {
     .collection(subcollectionNames.ADDENDUM)
     .doc();
   let activityObject = {
+    template: locals.mainActivityData.template,
     timestamp: Date.now(),
     venue: locals.mainActivityData.venue,
     schedule: locals.mainActivityData.schedule,
@@ -313,7 +314,7 @@ const createDocsWithBatch = async (conn, locals) => {
     activityObject.checkLimit = locals.templateDoc.get('checkLimit');
   }
 
-  if (conn.req.body.template === 'customer') {
+  if (locals.mainActivityData.template === 'customer') {
     const { address } = locals.mainActivityData.venue[0];
 
     const placesQueryResult = await getCustomerObject({
@@ -374,17 +375,17 @@ const createDocsWithBatch = async (conn, locals) => {
   activityObject.createTimestamp = Date.now();
   activityObject.timestamp = Date.now();
   activityObject.timezone = timezone;
-  activityObject.office = conn.req.body.office;
+  activityObject.office = locals.mainActivityData.office;
   activityObject.addendumDocRef = addendumDocRef;
-  activityObject.template = conn.req.body.template;
+  activityObject.template = locals.mainActivityData.template;
   activityObject.status = locals.templateDoc.get('statusOnCreate');
   activityObject.canEditRule = locals.templateDoc.get('canEditRule');
   activityObject.officeId = locals.officeDoc.id;
   activityObject.hidden = locals.templateDoc.get('hidden');
   activityObject.activityName = activityName({
     requester: conn.requester,
-    attachmentObject: conn.req.body.attachment,
-    templateName: conn.req.body.template,
+    attachmentObject: locals.mainActivityData.attachment,
+    templateName: locals.mainActivityData.template,
   });
   activityObject.creator = {
     phoneNumber: conn.requester.phoneNumber,
@@ -392,7 +393,7 @@ const createDocsWithBatch = async (conn, locals) => {
     photoURL: conn.requester.photoURL,
   };
 
-  const adjustedGeopoints = getAdjustedGeopointsFromVenue(conn.req.body.venue);
+  const adjustedGeopoints = getAdjustedGeopointsFromVenue(locals.mainActivityData.venue);
 
   const templatesToSkip = new Set([
     'check-in',
@@ -401,7 +402,7 @@ const createDocsWithBatch = async (conn, locals) => {
   ]);
 
   if (
-    !templatesToSkip.has(conn.req.body.template) &&
+    !templatesToSkip.has(locals.mainActivityData.template) &&
     adjustedGeopoints.length > 0
   ) {
     activityObject.adjustedGeopoints = adjustedGeopoints[0];
@@ -618,7 +619,7 @@ const checkDbReadsII = async (conn, locals, result) => {
       );
     }
   }
-  if (locals.conn.req.body.template === 'claim') {
+  if (locals.mainActivityData.template === 'claim') {
     const claimType = locals.mainActivityData.attachment['Claim Type'].value;
     const amount = locals.mainActivityData.attachment.Amount.value;
 
@@ -1129,13 +1130,14 @@ const createLocals = async (
   }
 
   if (!conn.requester.isSupportRequest) {
-    conn.req.body.share.push(conn.requester.phoneNumber);
+    locals.mainActivityData.share = locals.mainActivityData.share || [];
+    locals.mainActivityData.share.push(conn.requester.phoneNumber);
   }
 
   const checkInResult = await isInvalidCheckIn({
     subscriptionDoc,
-    currentGeopoint: conn.req.body.geopoint,
-    provider: conn.req.body.geopoint.provider,
+    currentGeopoint: locals.mainActivityData.geopoint,
+    provider: locals.mainActivityData.geopoint.provider,
     phoneNumber: conn.requester.phoneNumber,
   });
 
