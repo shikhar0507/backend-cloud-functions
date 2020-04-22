@@ -87,7 +87,7 @@ const growthFileMsIntegration = async change => {
 
   return growthfileMsRequester({
     method: msRequestTypes.ACTIVITY,
-    payload:JSON.stringify(activityData),
+    payload: JSON.stringify(activityData),
     resourcePath: msEndpoints.ACTIVITY,
   });
 };
@@ -696,7 +696,6 @@ const handleSubscription = async locals => {
   const subscriptionDocData = {
     timestamp: Date.now(),
     include: Array.from(new Set(include)),
-    template: templateDoc.get('name'),
     office: locals.change.after.get('office'),
     status: locals.change.after.get('status'),
   };
@@ -712,9 +711,16 @@ const handleSubscription = async locals => {
       subscriptionDocData.roleDoc = getActivityObjectWithMetadata(roleDoc);
     }
   }
-
-  batch.set(subscriptionDocRef, subscriptionDocData, { merge: true });
-
+  const subscriptionData = locals.change.after.data();
+  //batch.set(subscriptionDocRef, subscriptionDocData, { merge: true });
+  batch.set(
+    subscriptionDocRef,
+    Object.assign({}, subscriptionData, {
+      include: Array.from(new Set(include)),
+    }),
+    { merge: true },
+  );
+  
   const newSubscriberAuth = await getAuth(newSubscriber);
 
   if (newSubscriberAuth.uid) {
@@ -4532,7 +4538,11 @@ const templateHandler = async locals => {
   }
 
   if (template === 'subscription') {
-    await handleSubscription(locals);
+    try {
+      await handleSubscription(locals);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   if (template === 'admin') {
