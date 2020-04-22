@@ -229,12 +229,7 @@ const hasAdminClaims = customClaims => {
  * @see https://en.wikipedia.org/wiki/ISO_8601
  */
 const getISO8601Date = (date = new Date()) =>
-  date
-    .toJSON()
-    .slice(0, 10)
-    .split('-')
-    .reverse()
-    .join('-');
+  date.toJSON().slice(0, 10).split('-').reverse().join('-');
 
 /**
  * Checks if the input argument to the function satisfies the
@@ -502,10 +497,7 @@ const cloudflareCdnUrl = (mainDownloadUrlStart, fileId, fileName) => {
 };
 
 const getFileHash = fileBuffer =>
-  crypto
-    .createHash('sha1')
-    .update(fileBuffer)
-    .digest('hex');
+  crypto.createHash('sha1').update(fileBuffer).digest('hex');
 
 const isValidUrl = suspectedUrl =>
   /^(ftp|http|https):\/\/[^ "]+$/.test(suspectedUrl);
@@ -1066,14 +1058,8 @@ const getEmployeesMapFromRealtimeDb = officeId => {
 const handleMailEventsReport = async worksheet => {
   const sheet = worksheet.addSheet('Mail Events');
   const momentYesterday = momentTz().subtract(0, 'day');
-  const start = momentYesterday
-    .clone()
-    .startOf('day')
-    .valueOf();
-  const end = momentYesterday
-    .clone()
-    .endOf('day')
-    .valueOf();
+  const start = momentYesterday.clone().startOf('day').valueOf();
+  const end = momentYesterday.clone().endOf('day').valueOf();
 
   // emailSentAt
   const docs = await rootCollections.mailEvents
@@ -1607,9 +1593,9 @@ const growthfileMsRequester = async ({
   if (!env.isProduction) {
     return;
   }
-  console.log(`api${resourcePath}`)
+  console.log(`api${resourcePath}`);
   console.log(body);
-  console.log(`Bearer ${env.growthfileMsToken}`)
+  console.log(`Bearer ${env.growthfileMsToken}`);
   return rpn(url.resolve(env.msActivityUrl, `api${resourcePath}`), {
     body,
     method,

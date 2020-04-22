@@ -127,10 +127,7 @@ module.exports = async conn => {
 
     activities.forEach(doc => {
       assigneePromises.push(
-        rootCollections.activities
-          .doc(doc.id)
-          .collection('Assignees')
-          .get(),
+        rootCollections.activities.doc(doc.id).collection('Assignees').get(),
       );
 
       json[doc.id] = {

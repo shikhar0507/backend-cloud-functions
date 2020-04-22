@@ -333,12 +333,7 @@ const getSingleReimbursement = doc => {
     timestamp: Date.now(),
     amount: doc.get('amount'),
     _type: addendumTypes.REIMBURSEMENT,
-    key: momentTz()
-      .date(date)
-      .month(month)
-      .year(year)
-      .startOf('day')
-      .valueOf(),
+    key: momentTz().date(date).month(month).year(year).startOf('day').valueOf(),
     id: `${date}${month}${year}${doc.id}`,
     reimbursementType: doc.get('reimbursementType'),
     reimbursementName: doc.get('reimbursementName') || null,

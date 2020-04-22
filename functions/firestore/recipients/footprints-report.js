@@ -296,9 +296,7 @@ const getValueFromRole = (doc, field) => {
 module.exports = async locals => {
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const timestampFromTimer = locals.change.after.get('timestamp');
-  const momentToday = momentTz(timestampFromTimer)
-    .tz(timezone)
-    .startOf('day');
+  const momentToday = momentTz(timestampFromTimer).tz(timezone).startOf('day');
   const momentYesterday = momentToday.clone().subtract(1, 'day');
   const dated = momentYesterday.format(dateFormats.DATE);
   const office = locals.officeDoc.get('office');

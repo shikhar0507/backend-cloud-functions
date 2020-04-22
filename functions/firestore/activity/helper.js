@@ -67,7 +67,7 @@ const validateSchedules = (body, scheduleNames) => {
   if (!body.hasOwnProperty('schedule')) {
     messageObject.isValid = false;
     messageObject.message =
-        `The 'schedule' field is missing` + ` from the request body.`;
+      `The 'schedule' field is missing` + ` from the request body.`;
 
     return messageObject;
   }
@@ -82,8 +82,8 @@ const validateSchedules = (body, scheduleNames) => {
   if (scheduleNames.length !== body.schedule.length) {
     messageObject.isValid = false;
     messageObject.message =
-        `Expected ${scheduleNames.length}` +
-        ` venues. Found ${body.schedule.length}`;
+      `Expected ${scheduleNames.length}` +
+      ` venues. Found ${body.schedule.length}`;
 
     return messageObject;
   }
@@ -97,29 +97,29 @@ const validateSchedules = (body, scheduleNames) => {
     if (typeof scheduleObject !== 'object') {
       messageObject.isValid = false;
       messageObject.message =
-          `The schedule array should be an object.` +
-          ` Found ${typeof scheduleObject}`;
+        `The schedule array should be an object.` +
+        ` Found ${typeof scheduleObject}`;
       break;
     }
 
     if (!scheduleObject.hasOwnProperty('name')) {
       messageObject.isValid = false;
       messageObject.message =
-          `Missing the field 'name' in schedule at` + ` position ${i}`;
+        `Missing the field 'name' in schedule at` + ` position ${i}`;
       break;
     }
 
     if (!scheduleObject.hasOwnProperty('startTime')) {
       messageObject.isValid = false;
       messageObject.message =
-          `Missing the field 'startTime' in schedule at` + ` position ${i}`;
+        `Missing the field 'startTime' in schedule at` + ` position ${i}`;
       break;
     }
 
     if (!scheduleObject.hasOwnProperty('endTime')) {
       messageObject.isValid = false;
       messageObject.message =
-          `Missing the field 'endTime' in schedule at` + ` position ${i}`;
+        `Missing the field 'endTime' in schedule at` + ` position ${i}`;
       break;
     }
 
@@ -144,37 +144,37 @@ const validateSchedules = (body, scheduleNames) => {
       if (typeof startTime !== 'number') {
         messageObject.isValid = false;
         messageObject.message =
-            `The 'startTime' in the schedule '${name}'` + ` should be a number`;
+          `The 'startTime' in the schedule '${name}'` + ` should be a number`;
         break;
       }
 
       if (typeof endTime !== 'number') {
         messageObject.isValid = false;
         messageObject.message =
-            `The 'endTime' in the schedule '${name}'` + ` should be a number`;
+          `The 'endTime' in the schedule '${name}'` + ` should be a number`;
         break;
       }
 
       if (!isValidDate(startTime)) {
         messageObject.isValid = false;
         messageObject.message =
-            `The 'startTime' in the schedule '${name}'` +
-            ` should be a valid unix timestamp`;
+          `The 'startTime' in the schedule '${name}'` +
+          ` should be a valid unix timestamp`;
         break;
       }
 
       if (!isValidDate(endTime)) {
         messageObject.isValid = false;
         messageObject.message =
-            `The 'endTime' in the schedule '${name}' should` +
-            `be a valid unix timestamp`;
+          `The 'endTime' in the schedule '${name}' should` +
+          `be a valid unix timestamp`;
         break;
       }
 
       if (startTime > endTime) {
         messageObject.isValid = false;
         messageObject.message =
-            `Schedule '${name}' has start time after` + ` the end time`;
+          `Schedule '${name}' has start time after` + ` the end time`;
         break;
       }
     }
@@ -228,8 +228,8 @@ const validateVenues = (body, venueDescriptors) => {
   if (venueDescriptors.length !== body.venue.length) {
     messageObject.isValid = false;
     messageObject.message =
-        `Expected ${venueDescriptors.length}` +
-        ` venues. Found ${body.venue.length}`;
+      `Expected ${venueDescriptors.length}` +
+      ` venues. Found ${body.venue.length}`;
 
     return messageObject;
   }
@@ -243,22 +243,22 @@ const validateVenues = (body, venueDescriptors) => {
     if (!venueObject.hasOwnProperty('venueDescriptor')) {
       messageObject.isValid = false;
       messageObject.message =
-          `The venue at position ${i} is missing` +
-          ` the field 'venueDescriptor'`;
+        `The venue at position ${i} is missing` +
+        ` the field 'venueDescriptor'`;
       break;
     }
 
     if (!venueObject.hasOwnProperty('address')) {
       messageObject.isValid = false;
       messageObject.message =
-          `The venue at position ${i} is missing` + ` the field 'address'`;
+        `The venue at position ${i} is missing` + ` the field 'address'`;
       break;
     }
 
     if (!venueObject.hasOwnProperty('geopoint')) {
       messageObject.isValid = false;
       messageObject.message =
-          `The venue at position ${i} is missing` + ` the field 'geopoint'`;
+        `The venue at position ${i} is missing` + ` the field 'geopoint'`;
       break;
     }
 
@@ -266,7 +266,7 @@ const validateVenues = (body, venueDescriptors) => {
       messageObject.isValid = false;
 
       messageObject.message =
-          `The venue at position ${i} is missing` + ` the field 'location'`;
+        `The venue at position ${i} is missing` + ` the field 'location'`;
       break;
     }
 
@@ -292,8 +292,8 @@ const validateVenues = (body, venueDescriptors) => {
     if (!venueDescriptors.includes(venueDescriptor)) {
       messageObject.isValid = false;
       messageObject.message =
-          `The value '${venueDescriptor}' is an` +
-          ` invalid venueDescriptor. Use: ${venueDescriptors}`;
+        `The value '${venueDescriptor}' is an` +
+        ` invalid venueDescriptor. Use: ${venueDescriptors}`;
       break;
     }
 
@@ -301,7 +301,7 @@ const validateVenues = (body, venueDescriptors) => {
       messageObject.isValid = false;
 
       messageObject.message =
-          `The venue at position ${i} has an` + ` invalid address`;
+        `The venue at position ${i} has an` + ` invalid address`;
       break;
     }
 
@@ -362,8 +362,8 @@ const filterAttachment = ({
   };
 
   const invalidTypeMessage =
-      `Expected the type of 'attachment' to be` +
-      ` of type 'Object'. Found ${typeof bodyAttachment}`;
+    `Expected the type of 'attachment' to be` +
+    ` of type 'Object'. Found ${typeof bodyAttachment}`;
 
   if (typeof bodyAttachment !== 'object') {
     messageObject.isValid = false;
@@ -383,8 +383,8 @@ const filterAttachment = ({
   if (Array.isArray(bodyAttachment)) {
     messageObject.isValid = false;
     messageObject.message =
-        `Expected the type of 'attachment' to be of type` +
-        ` 'Object' Found 'Array'.`;
+      `Expected the type of 'attachment' to be of type` +
+      ` 'Object' Found 'Array'.`;
 
     return messageObject;
   }
@@ -432,10 +432,10 @@ const filterAttachment = ({
     }
 
     if (
-        typeof value !== 'number' &&
-        typeof value !== 'string' &&
-        typeof value !== 'boolean' &&
-        !Array.isArray(value)
+      typeof value !== 'number' &&
+      typeof value !== 'string' &&
+      typeof value !== 'boolean' &&
+      !Array.isArray(value)
     ) {
       messageObject.isValid = false;
       messageObject.message = `${field} can only be number/boolean/array`;
@@ -500,7 +500,7 @@ const filterAttachment = ({
             .where('template', '==', type)
             .where('office', '==', office)
             .limit(1)
-            .get()
+            .get(),
         );
       }
     }
@@ -515,9 +515,9 @@ const filterAttachment = ({
       if (template === 'office' && bodyAttachment.Name.value !== office) {
         messageObject.isValid = false;
         messageObject.message =
-            `The office name in the` +
-            ` 'attachment.Name.value' and the` +
-            ` 'office' field in the request body should be the same`;
+          `The office name in the` +
+          ` 'attachment.Name.value' and the` +
+          ` 'office' field in the request body should be the same`;
         break;
       }
     }
@@ -559,8 +559,8 @@ const filterAttachment = ({
       if (value !== '' && !weekdays.has(value)) {
         messageObject.isValid = false;
         messageObject.message =
-            `${field} should be a weekday.` +
-            ` Use: ${Array.from(weekdays.keys())}`;
+          `${field} should be a weekday.` +
+          ` Use: ${Array.from(weekdays.keys())}`;
         break;
       }
     }
@@ -600,8 +600,8 @@ const validateCreateRequestBody = (body, successMessage) => {
   if (!isNonEmptyString(body.template)) {
     return {
       message:
-          `Expected 'template' field to have a value of type 'string'. ` +
-          `Found ${typeof body.template}.`,
+        `Expected 'template' field to have a value of type 'string'. ` +
+        `Found ${typeof body.template}.`,
       isValid: false,
     };
   }
@@ -650,7 +650,7 @@ const validateCreateRequestBody = (body, successMessage) => {
 
     if (!isE164PhoneNumber(phoneNumber)) {
       successMessage.message =
-          `${phoneNumber} is invalid.` + ` Please contact support`;
+        `${phoneNumber} is invalid.` + ` Please contact support`;
       successMessage.isValid = false;
       break;
     }
@@ -668,16 +668,16 @@ const validateCreateRequestBody = (body, successMessage) => {
  */
 const validateUpdateRequestBody = (body, successMessage) => {
   if (
-      !body.hasOwnProperty('venue') &&
-      !body.hasOwnProperty('schedule') &&
-      !body.hasOwnProperty('attachment')
+    !body.hasOwnProperty('venue') &&
+    !body.hasOwnProperty('schedule') &&
+    !body.hasOwnProperty('attachment')
   ) {
     return {
       message:
-          `The request body has no usable fields.` +
-          ` Please add at least any of these: ,` +
-          ` 'schedule', 'venue' or 'attachment'` +
-          ` in the request body to make a successful request.`,
+        `The request body has no usable fields.` +
+        ` Please add at least any of these: ,` +
+        ` 'schedule', 'venue' or 'attachment'` +
+        ` in the request body to make a successful request.`,
       isValid: false,
     };
   }
@@ -772,7 +772,7 @@ const validateRemoveRequestBody = (body, successMessage) => {
   if (!isE164PhoneNumber(body.remove)) {
     return {
       message:
-          `The phone number: '${body.remove}' is not a valid` + ` phone number.`,
+        `The phone number: '${body.remove}' is not a valid` + ` phone number.`,
       isValid: false,
     };
   }
@@ -816,8 +816,8 @@ const validateShareRequestBody = (body, successMessage) => {
 
     if (!isE164PhoneNumber(phoneNumber)) {
       successMessage.message =
-          `The phone number ${phoneNumber} is invalid.` +
-          ` Please choose a valid phone number.`;
+        `The phone number ${phoneNumber} is invalid.` +
+        ` Please choose a valid phone number.`;
       successMessage.isValid = false;
     }
 
@@ -990,19 +990,19 @@ const haversineDistance = (geopointOne, geopointTwo) => {
   const RADIUS_OF_EARTH = 6371;
 
   const distanceBetweenLatitudes = toRad(
-      geopointOne._latitude - geopointTwo._latitude,
+    geopointOne._latitude - geopointTwo._latitude,
   );
   const distanceBetweenLongitudes = toRad(
-      geopointOne._longitude - geopointTwo._longitude,
+    geopointOne._longitude - geopointTwo._longitude,
   );
 
   const lat1 = toRad(geopointOne._latitude);
   const lat2 = toRad(geopointTwo._latitude);
 
   const a =
-      Math.sin(distanceBetweenLatitudes / 2) *
+    Math.sin(distanceBetweenLatitudes / 2) *
       Math.sin(distanceBetweenLatitudes / 2) +
-      Math.sin(distanceBetweenLongitudes / 2) *
+    Math.sin(distanceBetweenLongitudes / 2) *
       Math.sin(distanceBetweenLongitudes / 2) *
       Math.cos(lat1) *
       Math.cos(lat2);
@@ -1020,8 +1020,8 @@ const activityName = options => {
 
   if (templateName === 'recipient') {
     return (
-        `${templateName.toUpperCase()}:` +
-        ` ${attachmentObject.Name.value.toUpperCase()} REPORT`
+      `${templateName.toUpperCase()}:` +
+      ` ${attachmentObject.Name.value.toUpperCase()} REPORT`
     );
   }
 
@@ -1035,14 +1035,14 @@ const activityName = options => {
 
   if (templateName === 'admin') {
     return `${templateName.toUpperCase()}: ${
-        attachmentObject['Phone Number'].value
+      attachmentObject['Phone Number'].value
     }`;
   }
 
   if (templateName === 'subscription') {
     return (
-        `${templateName.toUpperCase()}:` +
-        ` ${attachmentObject['Phone Number'].value}`
+      `${templateName.toUpperCase()}:` +
+      ` ${attachmentObject['Phone Number'].value}`
     );
   }
 
@@ -1139,16 +1139,16 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
 
   const [subscriptionTemplateQuery, userSubscriptionQuery] = await Promise.all([
     rootCollections.activityTemplates
-        .where('name', '==', 'subscription')
-        .limit(1)
-        .get(),
+      .where('name', '==', 'subscription')
+      .limit(1)
+      .get(),
     rootCollections.activities
-        .where('attachment.Phone Number.value', '==', subscriber)
-        .where('attachment.Template.value', '==', templateName)
-        .where('officeId', '==', officeId)
-        .where('status', '==', 'CONFIRMED')
-        .limit(1)
-        .get(),
+      .where('attachment.Phone Number.value', '==', subscriber)
+      .where('attachment.Template.value', '==', templateName)
+      .where('officeId', '==', officeId)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get(),
   ]);
 
   /** Already has the subscription to whatever template that was passed */
@@ -1159,22 +1159,22 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
   const [subscriptionTemplateDoc] = subscriptionTemplateQuery.docs;
   const activityRef = rootCollections.activities.doc();
   const addendumDocRef = rootCollections.offices
-      .doc(officeId)
-      .collection(subcollectionNames.ADDENDUM)
-      .doc();
+    .doc(officeId)
+    .collection(subcollectionNames.ADDENDUM)
+    .doc();
   const attachment = Object.assign(
-      {},
-      subscriptionTemplateDoc.get('attachment'),
-      {
-        'Phone Number': {
-          value: subscriber,
-          type: subscriptionTemplateDoc.get('attachment.Phone Number.type'),
-        },
-        Template: {
-          value: templateName,
-          type: subscriptionTemplateDoc.get('attachment.Template.type'),
-        },
+    {},
+    subscriptionTemplateDoc.get('attachment'),
+    {
+      'Phone Number': {
+        value: subscriber,
+        type: subscriptionTemplateDoc.get('attachment.Phone Number.type'),
       },
+      Template: {
+        value: templateName,
+        type: subscriptionTemplateDoc.get('attachment.Template.type'),
+      },
+    },
   );
 
   const activityData = {
@@ -1198,8 +1198,8 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
   const addendumDocData = {
     activityData,
     user:
-        locals.change.after.get('creator.phoneNumber') ||
-        locals.change.after.get('phoneNumber'),
+      locals.change.after.get('creator.phoneNumber') ||
+      locals.change.after.get('phoneNumber'),
     userDisplayName: locals.change.after.get('creator.displayName') || '',
     share: locals.assigneePhoneNumbersArray,
     action: httpsActions.create,
@@ -1220,11 +1220,11 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
 
   locals.assigneePhoneNumbersArray.forEach(phoneNumber => {
     batch.set(
-        activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
-        {
-          /** Subscription's canEditRule is ADMIN */
-          addToInclude: phoneNumber !== subscriber,
-        },
+      activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
+      {
+        /** Subscription's canEditRule is ADMIN */
+        addToInclude: phoneNumber !== subscriber,
+      },
     );
   });
 
@@ -1243,21 +1243,21 @@ const attendanceConflictHandler = async ({ schedule, phoneNumber, office }) => {
   // where(scheduleDates, array_contains, '1 Jan 2019')
   schedule.forEach(({ startTime, endTime }) => {
     allDateStrings.push(
-        ...enumerateDaysBetweenDates(startTime, endTime, dateFormats.DATE),
+      ...enumerateDaysBetweenDates(startTime, endTime, dateFormats.DATE),
     );
   });
 
   const queries = allDateStrings.map(dateString => {
     return (
-        rootCollections.profiles
-            .doc(phoneNumber)
-            .collection(subcollectionNames.ACTIVITIES)
-            .where('office', '==', office)
-            .where('scheduleDates', 'array-contains', dateString)
-            /** Leave creator is the person for whom the leave should be checked */
-            .where('creator.phoneNumber', '==', phoneNumber)
-            .limit(1)
-            .get()
+      rootCollections.profiles
+        .doc(phoneNumber)
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('office', '==', office)
+        .where('scheduleDates', 'array-contains', dateString)
+        /** Leave creator is the person for whom the leave should be checked */
+        .where('creator.phoneNumber', '==', phoneNumber)
+        .limit(1)
+        .get()
     );
   });
 
@@ -1307,31 +1307,31 @@ const checkLimitHelper = ({ locals, sendResponse, code }) => {
     const endMoment = momentTz(locals.mainActivityData.schedule[0].endTime);
     locals.dbReadsII.limitDocument = [
       rootCollections.activities
-          .where('office', '==', locals.officeDoc.get('office'))
-          .where('template', '==', 'leave-type')
-          .where(
-              'attachment.Name.value',
-              '==',
-              locals.mainActivityData.attachment['Leave Type'].value,
-          )
-          .limit(1)
-          .get(),
+        .where('office', '==', locals.officeDoc.get('office'))
+        .where('template', '==', 'leave-type')
+        .where(
+          'attachment.Name.value',
+          '==',
+          locals.mainActivityData.attachment['Leave Type'].value,
+        )
+        .limit(1)
+        .get(),
     ];
     locals.dbReadsII.limitQuery = [
       locals.officeDoc.ref
-          .collection(subcollectionNames.ACTIVITIES)
-          .where('creator', '==', locals.conn.requester.phoneNumber)
-          .where('template', '==', 'leave')
-          .where(
-              'attachment.Leave Type.value',
-              '==',
-              locals.mainActivityData.attachment['Leave Type'].value,
-          )
-          .where('startYear', '==', startMoment.year())
-          .where('endYear', '==', endMoment.year())
-          /** Cancelled leaves don't count to the full number */
-          .where('status', '==', 'CONFIRMED')
-          .get(),
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('creator', '==', locals.conn.requester.phoneNumber)
+        .where('template', '==', 'leave')
+        .where(
+          'attachment.Leave Type.value',
+          '==',
+          locals.mainActivityData.attachment['Leave Type'].value,
+        )
+        .where('startYear', '==', startMoment.year())
+        .where('endYear', '==', endMoment.year())
+        /** Cancelled leaves don't count to the full number */
+        .where('status', '==', 'CONFIRMED')
+        .get(),
     ];
   }
   if (template === 'claim') {
@@ -1342,69 +1342,68 @@ const checkLimitHelper = ({ locals, sendResponse, code }) => {
     }
     if (Number(amount || 0) < 1) {
       sendResponse(
-          locals.conn,
-          code.badRequest,
-          `Amount should be a positive number`,
+        locals.conn,
+        code.badRequest,
+        `Amount should be a positive number`,
       );
       return false;
-
     }
     const { officeId, phoneNumber } = {
       officeId: locals.officeDoc.id,
       phoneNumber: locals.conn.requester.phoneNumber,
     };
     const baseQuery = rootCollections.activities.where(
-        'officeId',
-        '==',
-        officeId,
+      'officeId',
+      '==',
+      officeId,
     );
 
     locals.dbReadsII.claimChecks = [
       baseQuery
 
-          .where('template', '==', 'claim')
-          .where('creator.phoneNumber', '==', phoneNumber)
-          .where('attachment.Claim Type.value', '==', claimType)
-          .get(),
+        .where('template', '==', 'claim')
+        .where('creator.phoneNumber', '==', phoneNumber)
+        .where('attachment.Claim Type.value', '==', claimType)
+        .get(),
       baseQuery
-          .where('template', '==', 'claim-type')
-          .where('attachment.Name.value', '==', claimType)
-          .limit(1)
-          .get(),
+        .where('template', '==', 'claim-type')
+        .where('attachment.Name.value', '==', claimType)
+        .limit(1)
+        .get(),
     ];
   }
   return true;
 };
 
 const activityCreator = ({
-                           attachment,
-                           dateConflict = null,
-                           dates = [],
-                           scheduleConflict = null,
-                           venue,
-                           schedule,
-                           report = '',
-                           isCancelled = null,
-                           createTimestamp = Date.now(),
-                           timestamp = Date.now(),
-                           office,
-                           addendumDocRef,
-                           template,
-                           status,
-                           canEditRule,
-                           officeId,
-                           hidden = '',
-                           activityName,
-                           relevantTime,
-                           scheduleDates,
-                           relevantTimeAndVenue,
-                           creator = {
-                             phoneNumber: '',
-                             displayName: '',
-                             photoURL: '',
-                           },
-                           adjustedGeopoints,
-                         }) => {
+  attachment,
+  dateConflict = null,
+  dates = [],
+  scheduleConflict = null,
+  venue,
+  schedule,
+  report = '',
+  isCancelled = null,
+  createTimestamp = Date.now(),
+  timestamp = Date.now(),
+  office,
+  addendumDocRef,
+  template,
+  status,
+  canEditRule,
+  officeId,
+  hidden = '',
+  activityName,
+  relevantTime,
+  scheduleDates,
+  relevantTimeAndVenue,
+  creator = {
+    phoneNumber: '',
+    displayName: '',
+    photoURL: '',
+  },
+  adjustedGeopoints,
+}) => {
   const activity = {
     attachment,
     dateConflict,

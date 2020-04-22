@@ -37,9 +37,7 @@ module.exports = conn => {
     return;
   }
 
-  const action = require('url')
-    .parse(conn.req.url)
-    .path.split('/')[3];
+  const action = require('url').parse(conn.req.url).path.split('/')[3];
 
   if (action === 'create') {
     if (conn.req.method !== 'POST') {

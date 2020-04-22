@@ -127,9 +127,7 @@ module.exports = async conn => {
     batch.set(
       recipientDoc.ref,
       {
-        timestamp: momentTz(conn.req.body.startTime)
-          .tz(timezone)
-          .valueOf(),
+        timestamp: momentTz(conn.req.body.startTime).tz(timezone).valueOf(),
       },
       {
         merge: true,

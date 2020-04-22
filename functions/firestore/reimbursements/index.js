@@ -52,10 +52,7 @@ const getDefaultVoucher = ({
 });
 
 const getIterator = ({ reimbursementFrequency, date, month, year }) => {
-  const momentInstance = momentTz()
-    .date(date)
-    .month(month)
-    .year(year);
+  const momentInstance = momentTz().date(date).month(month).year(year);
   const isBimonthly =
     reimbursementFrequency === reimbursementsFrequencies.BI_MONTHLY;
 
@@ -201,9 +198,7 @@ const reimbursementHandler = async (change, context) => {
         ? firstVoucherDoc.createTime.toMillis()
         : Date.now(),
       updatedAt: Date.now(),
-      amount: currencyJs(data.amount)
-        .add(amount)
-        .toString(),
+      amount: currencyJs(data.amount).add(amount).toString(),
       batchId: data.batchId || null,
       type: addendumTypes.REIMBURSEMENT,
       timestamp: Date.now(),

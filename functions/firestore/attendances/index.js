@@ -38,17 +38,11 @@ const getCycle = ({ firstDayOfMonthlyCycle, month, year }) => {
   // if fdmc !== 1 => start = fdmc; end = (fdmc + 1) in next month
 
   if (firstDayOfMonthlyCycle === 1) {
-    const cycleStart = momentTz()
-      .month(month)
-      .year(year)
-      .date(1);
+    const cycleStart = momentTz().month(month).year(year).date(1);
 
     return {
       cycleStart: cycleStart.format(dateFormats.DATE),
-      cycleEnd: cycleStart
-        .clone()
-        .endOf('month')
-        .format(dateFormats.DATE),
+      cycleEnd: cycleStart.clone().endOf('month').format(dateFormats.DATE),
     };
   }
 
@@ -103,9 +97,7 @@ const attendanceHandler = async ({ doc, officeId }) => {
     uid: beneficiaryId,
     phoneNumber,
   } = doc.data();
-  const momentCurrMonth = momentTz()
-    .month(month)
-    .year(year);
+  const momentCurrMonth = momentTz().month(month).year(year);
   const momentPrevMonth = momentCurrMonth.clone().subtract(1, 'months');
   const officeDoc = await rootCollections.offices.doc(officeId).get();
   const firstDayOfMonthlyCycle =
@@ -137,10 +129,7 @@ const attendanceHandler = async ({ doc, officeId }) => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
         firstDayOfMonthlyCycle,
-        momentPrevMonth
-          .clone()
-          .endOf('month')
-          .date() + 1,
+        momentPrevMonth.clone().endOf('month').date() + 1,
       );
     }
 

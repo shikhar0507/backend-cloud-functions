@@ -109,10 +109,7 @@ const grantSubscription = async conn => {
       .where('attachment.Phone Number.value', '==', phoneNumber)
       .where('attachment.Template.value', '==', 'check-in')
       .get(),
-    rootCollections.offices
-      .where('office', '==', office)
-      .limit(1)
-      .get(),
+    rootCollections.offices.where('office', '==', office).limit(1).get(),
     rootCollections.activityTemplates
       .where('name', '==', 'subscription')
       .limit(1)

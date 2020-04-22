@@ -61,14 +61,8 @@ const getClaimStatus = async ({
   timezone,
 }) => {
   const momentNow = momentTz().tz(timezone);
-  const monthStart = momentNow
-    .clone()
-    .startOf('month')
-    .valueOf();
-  const monthEnd = momentNow
-    .clone()
-    .endOf('month')
-    .valueOf();
+  const monthStart = momentNow.clone().startOf('month').valueOf();
+  const monthEnd = momentNow.clone().endOf('month').valueOf();
   const baseQuery = rootCollections.activities.where(
     'officeId',
     '==',
@@ -550,9 +544,11 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
       conn,
       code.conflict,
       `Cannot create a leave. Leave limit exceeded by` +
-        ` ${leavesTakenThisTime +
+        ` ${
+          leavesTakenThisTime +
           locals.leavesTakenThisYear -
-          locals.maxLeavesAllowed} days.`,
+          locals.maxLeavesAllowed
+        } days.`,
     );
   }
 
@@ -644,15 +640,8 @@ const handlePayroll = async (conn, locals) => {
     const [{ startTime, endTime }] = doc.get('schedule');
 
     locals.leavesTakenThisYear += momentTz(
-      momentTz(endTime)
-        .endOf('day')
-        .valueOf(),
-    ).diff(
-      momentTz(startTime)
-        .startOf('day')
-        .valueOf(),
-      'days',
-    );
+      momentTz(endTime).endOf('day').valueOf(),
+    ).diff(momentTz(startTime).startOf('day').valueOf(), 'days');
   });
 
   if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {

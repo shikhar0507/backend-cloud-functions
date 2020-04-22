@@ -208,14 +208,8 @@ const depositsHandler = async conn => {
       ],
     },
   ] = await Promise.all([
-    rootCollections.offices
-      .where('office', '==', office)
-      .limit(1)
-      .get(),
-    rootCollections.offices
-      .where('office', '==', mainOffice)
-      .limit(1)
-      .get(),
+    rootCollections.offices.where('office', '==', office).limit(1).get(),
+    rootCollections.offices.where('office', '==', mainOffice).limit(1).get(),
   ]);
 
   if (!officeDoc) {

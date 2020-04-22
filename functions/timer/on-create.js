@@ -202,9 +202,7 @@ module.exports = async timerDoc => {
       fetchExternalTokens(timerDoc),
     ]);
 
-    const momentYesterday = moment()
-      .subtract(1, 'day')
-      .startOf('day');
+    const momentYesterday = moment().subtract(1, 'day').startOf('day');
 
     const [recipientsQuery, counterDocsQuery] = await Promise.all([
       rootCollections.recipients.get(),

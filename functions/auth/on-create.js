@@ -45,9 +45,7 @@ const moment = require('moment');
  */
 module.exports = async userRecord => {
   const batch = db.batch();
-  const momentToday = moment()
-    .utc()
-    .toObject();
+  const momentToday = moment().utc().toObject();
 
   /**
    * Users with anonymous don't get a doc in Profiles/<phoneNumber>
@@ -71,10 +69,7 @@ module.exports = async userRecord => {
       initDocsQuery,
       adminActivitiesQuery,
     ] = await Promise.all([
-      rootCollections.inits
-        .where('report', '==', 'counter')
-        .limit(1)
-        .get(),
+      rootCollections.inits.where('report', '==', 'counter').limit(1).get(),
       rootCollections.inits
         .where('report', '==', reportNames.DAILY_STATUS_REPORT)
         .where('date', '==', momentToday.date)

@@ -382,9 +382,7 @@ const fetchOfficeData = async (locals, requester) => {
       }
 
       /** Some random number for testing environments*/
-      return `+919${Math.random()
-        .toString()
-        .slice(2, 12)}`;
+      return `+919${Math.random().toString().slice(2, 12)}`;
     })();
 
     const latitude = venue.geopoint._latitude || venue.geopoint.latitude;
@@ -911,10 +909,7 @@ const handleSitemap = async () => {
   };
 
   const path = 'sitemap';
-  const result = await admin
-    .database()
-    .ref(path)
-    .once('value');
+  const result = await admin.database().ref(path).once('value');
   const sitemapObject = result.val() || {};
   const allOffices = Object.entries(sitemapObject);
   let xmlString = '';

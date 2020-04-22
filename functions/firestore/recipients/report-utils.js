@@ -27,10 +27,7 @@ const { dateFormats } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 
 const momentOffsetObject = timezone => {
-  const momentToday = momentTz()
-    .utc()
-    .clone()
-    .tz(timezone);
+  const momentToday = momentTz().utc().clone().tz(timezone);
 
   const momentYesterday = momentTz()
     .utc()
