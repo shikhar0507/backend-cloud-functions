@@ -347,12 +347,12 @@ const validateVenues = (body, venueDescriptors) => {
  * denoting if the attachment is a valid object.
  */
 const filterAttachment = ({
-                            bodyAttachment,
-                            templateAttachment,
-                            template,
-                            office,
-                            dbReadsII,
-                          }) => {
+  bodyAttachment,
+  templateAttachment,
+  template,
+  office,
+  dbReadsII,
+}) => {
   const messageObject = {
     isValid: true,
     message: null,
@@ -495,12 +495,12 @@ const filterAttachment = ({
         // Won't be querying an array directly.
       } else if (!Array.isArray(value)) {
         dbReadsII.shouldExist.push(
-            rootCollections.activities
-                .where('attachment.Name.value', '==', value)
-                .where('template', '==', type)
-                .where('office', '==', office)
-                .limit(1)
-                .get(),
+          rootCollections.activities
+            .where('attachment.Name.value', '==', value)
+            .where('template', '==', type)
+            .where('office', '==', office)
+            .limit(1)
+            .get()
         );
       }
     }
@@ -1293,6 +1293,7 @@ const attendanceConflictHandler = async ({ schedule, phoneNumber, office }) => {
 };
 
 /**
+
  * Starts the checkLimit procedure
  * @param locals {{ activityId:any, dbReadsII: {shouldExist: []}, officeDoc: *, conn: *, method: *, templateDoc: *, subscriptionDoc: *, profileDoc: *, mainActivityData: *}}
  * @param sendResponse
@@ -1346,6 +1347,7 @@ const checkLimitHelper = ({ locals, sendResponse, code }) => {
           `Amount should be a positive number`,
       );
       return false;
+
     }
     const { officeId, phoneNumber } = {
       officeId: locals.officeDoc.id,
@@ -1359,6 +1361,7 @@ const checkLimitHelper = ({ locals, sendResponse, code }) => {
 
     locals.dbReadsII.claimChecks = [
       baseQuery
+
           .where('template', '==', 'claim')
           .where('creator.phoneNumber', '==', phoneNumber)
           .where('attachment.Claim Type.value', '==', claimType)
