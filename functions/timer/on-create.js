@@ -36,7 +36,6 @@ const sgMail = require('@sendgrid/mail');
 const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
-const { growthfileMsRequester } = require('../admin/utils');
 const SERVICE_NAME = `[timer][on-create]`;
 
 sgMail.setApiKey(env.sgMailApiKey);
@@ -243,11 +242,23 @@ module.exports = async timerDoc => {
 
     await deleteInstantDocs();
 
-    return growthfileMsRequester({
-      payload: {},
-      method: msRequestTypes.TIMER,
-      resourcePath: msEndpoints.TIMER,
-    });
+    module.exports = async () => {
+      if (!env.isProduction) {
+        return;
+      }
+      const url =
+        'https://us-central1-growthfilems.cloudfunctions.net/api/timer';
+      const timer = await rpn(url, {
+        json: true,
+        method: 'GET',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${env.growthifleMsToken}`,
+        },
+        body:undefined
+      });
+      console.log('resp', timer);
+    };
   } catch (error) {
     console.error(
       `${SERVICE_NAME}[module.exports][catch][error] ${error.message}`,
