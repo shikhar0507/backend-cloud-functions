@@ -1293,17 +1293,17 @@ const attendanceConflictHandler = async ({ schedule, phoneNumber, office }) => {
 };
 
 /**
- * Starts the checklimit procedure
- * @param locals
+ * Starts the checkLimit procedure
+ * @param locals {{ activityId:any, dbReadsII: {shouldExist: []}, officeDoc: *, conn: *, method: *, templateDoc: *, subscriptionDoc: *, profileDoc: *, mainActivityData: *}}
  * @param sendResponse
  * @param code
  */
 const checkLimitHelper = ({ locals, sendResponse, code }) => {
   locals.dbReadsII.checkLimit = [];
-  const { template } = locals.conn.req.body;
+  const { template } = locals.mainActivityData;
   if (template === 'leave') {
-    const startMoment = momentTz(locals.conn.req.body.schedule[0].endTime);
-    const endMoment = momentTz(locals.conn.req.body.schedule[0].endTime);
+    const startMoment = momentTz(locals.mainActivityData.schedule[0].endTime);
+    const endMoment = momentTz(locals.mainActivityData.schedule[0].endTime);
     locals.dbReadsII.limitDocument = [
       rootCollections.activities
         .where('office', '==', locals.officeDoc.get('office'))
@@ -1311,7 +1311,7 @@ const checkLimitHelper = ({ locals, sendResponse, code }) => {
         .where(
           'attachment.Name.value',
           '==',
-          locals.conn.req.body.attachment['Leave Type'].value,
+          locals.mainActivityData.attachment['Leave Type'].value,
         )
         .limit(1)
         .get(),
@@ -1324,7 +1324,7 @@ const checkLimitHelper = ({ locals, sendResponse, code }) => {
         .where(
           'attachment.Leave Type.value',
           '==',
-          locals.conn.req.body.attachment['Leave Type'].value,
+          locals.mainActivityData.attachment['Leave Type'].value,
         )
         .where('startYear', '==', startMoment.year())
         .where('endYear', '==', endMoment.year())
@@ -1334,17 +1334,18 @@ const checkLimitHelper = ({ locals, sendResponse, code }) => {
     ];
   }
   if (template === 'claim') {
-    const claimType = locals.conn.req.body.attachment['Claim Type'].value;
-    const amount = locals.conn.req.body.attachment.Amount.value;
+    const claimType = locals.mainActivityData.attachment['Claim Type'].value;
+    const amount = locals.mainActivityData.attachment.Amount.value;
     if (!claimType) {
-      return;
+      return true;
     }
     if (Number(amount || 0) < 1) {
-      return sendResponse(
+      sendResponse(
         locals.conn,
         code.badRequest,
         `Amount should be a positive number`,
       );
+      return false;
     }
     const { officeId, phoneNumber } = {
       officeId: locals.officeDoc.id,
