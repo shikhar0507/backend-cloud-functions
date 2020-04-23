@@ -521,7 +521,9 @@ const read = async conn => {
 
   (subscriptions || []).forEach(doc => {
     const template = doc.get('attachment.Template.value');
-
+    if (!template) {
+      return;
+    }
     templatePromises.push(
       rootCollections.activityTemplates
         .where('name', '==', template)
@@ -544,6 +546,9 @@ const read = async conn => {
 
   (subscriptions || []).forEach(doc => {
     const template = doc.get('attachment.Template.value');
+    if (!template) {
+      return;
+    }
     const templateDoc = templatesMap.get(template);
     const {canEditRule} = templateDoc;
     templatePromises.push(
@@ -557,15 +562,14 @@ const read = async conn => {
     if (canEditRule === 'ADMIN') {
       return;
     }
-
     
-
     if (!templateDoc) {
       return;
     }
 
     jsonObject.templates.push(
       Object.assign({}, subscriptionFilter(doc), {
+        template,
         activityId: doc.id,
         report: templateDoc.get('report') || null,
         schedule: templateDoc.get('schedule'),
