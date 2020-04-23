@@ -25,13 +25,12 @@
 /** request method for growthfile ms project */
 const msRequestTypes = {
   ACTIVITY: 'PUT',
-  TIMER: 'GET',
 };
 
 /** Api Endpoints for growthfileMS */
 const msEndpoints = {
-  ACTIVITY: 'activity',
-  TIMER: 'timer',
+  ACTIVITY: '/activity'
+  
 };
 
 /** Types allowed for the field `type` in the attachment object. */
