@@ -251,9 +251,9 @@ module.exports = async timerDoc => {
         method: 'GET',
         headers: {
           'content-type': 'application/json',
-          authorization: `Bearer ${env.growthifleMsToken}`,
+          authorization: `Bearer ${env.growthfileMsToken}`,
         },
-        body:undefined
+        body: undefined,
       });
       console.log('resp', timer);
     };
