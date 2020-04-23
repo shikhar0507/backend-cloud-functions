@@ -694,6 +694,7 @@ const handleSubscription = async locals => {
   });
 
   const subscriptionDocData = {
+    template: template: subscribedTemplate,
     timestamp: Date.now(),
     include: Array.from(new Set(include)),
     office: locals.change.after.get('office'),
