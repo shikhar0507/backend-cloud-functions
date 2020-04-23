@@ -24,12 +24,7 @@
 'use strict';
 
 const { db, rootCollections } = require('../admin/admin');
-const {
-  reportNames,
-  dateFormats,
-  msEndpoints,
-  msRequestTypes,
-} = require('../admin/constants');
+const { reportNames, dateFormats } = require('../admin/constants');
 const moment = require('moment');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
