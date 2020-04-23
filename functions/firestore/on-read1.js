@@ -520,7 +520,7 @@ const read = async conn => {
   ] = await Promise.all([Promise.all(promises), Promise.all(locationPromises)]);
 
   (subscriptions || []).forEach(doc => {
-    const { template } = doc.data();
+    const template = doc.get('attachment.Template.value');
 
     templatePromises.push(
       rootCollections.activityTemplates
@@ -543,8 +543,9 @@ const read = async conn => {
   });
 
   (subscriptions || []).forEach(doc => {
-    const { template, canEditRule } = doc.data();
-
+    const template = doc.get('attachment.Template.value');
+    const templateDoc = templatesMap.get(template);
+    const {canEditRule} = templateDoc;
     templatePromises.push(
       rootCollections.activityTemplates
         .where('name', '==', template)
@@ -557,7 +558,7 @@ const read = async conn => {
       return;
     }
 
-    const templateDoc = templatesMap.get(template);
+    
 
     if (!templateDoc) {
       return;
