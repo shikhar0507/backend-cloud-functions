@@ -397,6 +397,7 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
   const { docs: activities } = await rootCollections.activities
     .where('office', '==', office)
     .where('report', '==', 'type')
+    .where('status', '==', 'CONFIRMED')
     .get();
   if (activities.length === 0) {
     return;
@@ -423,6 +424,11 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
 };
 
 const getPayments = async ({ jsonObject, officeId }) => {
+  // not implementing payments for now
+  const checkPayments = false;
+  if (!checkPayments) {
+    return;
+  }
   (
     await rootCollections.payments.where('officeId', '==', officeId).get()
   ).forEach(doc => {
@@ -497,6 +503,8 @@ const getProfileSubcollectionPromise = ({ subcollection, phoneNumber, from }) =>
     .get();
 
 const read = async conn => {
+  const requestTime = Date.now();
+
   const v = validateRequest(conn);
 
   if (v) {
@@ -717,6 +725,8 @@ const read = async conn => {
     if (!addendum.empty) {
       jsonObject.upto = addendum.docs[addendum.size - 1].get('timestamp');
     }
+  } else {
+    jsonObject.upto = requestTime;
   }
 
   /**
