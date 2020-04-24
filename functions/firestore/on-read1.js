@@ -406,18 +406,24 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
     const venue = activity.get('venue');
     if (venue && Array.isArray(venue) && venue.length > 0) {
       jsonObject.locations.push(
-        Object.assign({}, activity.data(), { activityId: activity.id }),
+        Object.assign({}, activity.data(), { activityId: activity.id },{
+            addendumDocRef:null,assignees:[]
+        }),
       );
       return;
     }
     if (activity.get('template') === 'product') {
       jsonObject.products.push(
-        Object.assign({}, activity.data(), { activityId: activity.id }),
+        Object.assign({}, activity.data(), { activityId: activity.id },{
+            addendumDocRef:null,assignees:[]
+        }),
       );
       return;
     }
     jsonObject.activities.push(
-      Object.assign({}, activity.data(), { activityId: activity.id }),
+      Object.assign({}, activity.data(), { activityId: activity.id },{
+          addendumDocRef:null,assignees:[]
+      }),
     );
     return;
   });
