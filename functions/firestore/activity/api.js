@@ -1259,7 +1259,9 @@ module.exports = async conn => {
     }
     if (
       conn.req.body.hasOwnProperty('attachment') &&
-      conn.req.body.attachment.hasOwnProperty('Name')
+      conn.req.body.attachment.hasOwnProperty('Name') &&
+      conn.req.body.attachment.Name.hasOwnProperty('value') &&
+      conn.req.body.attachment.Name.value
     ) {
       promises.push(
         rootCollections.activities
@@ -1279,7 +1281,9 @@ module.exports = async conn => {
     }
     if (
       conn.req.body.hasOwnProperty('attachment') &&
-      conn.req.body.attachment.hasOwnProperty('Phone Number')
+      conn.req.body.attachment.hasOwnProperty('Phone Number') &&
+      conn.req.body.attachment['Phone Number'].hasOwnProperty('value') &&
+      conn.req.body.attachment['Phone Number'].value
     ) {
       promises.push(
         rootCollections.activities
