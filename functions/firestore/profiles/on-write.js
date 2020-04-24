@@ -37,26 +37,28 @@ const manageOldCheckins = async change => {
   const oldFromValue = change.before.get('lastQueryFrom');
   const newFromValue = change.after.get('lastQueryFrom');
 
-  /**
-   * Both old and the new values should be available
-   * None should be 0.
-   * The newer value should be greater than the older
-   * value.
-   */
-  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
-    return;
-  }
-
   const batch = db.batch();
 
-  (
-    await change.after.ref
-      .collection(subcollectionNames.ACTIVITIES)
-      .where('template', '==', 'check-in')
-      .where('timestamp', '<', oldFromValue)
-      .limit(500)
-      .get()
-  ).forEach(doc => batch.delete(doc.ref));
+  if (oldFromValue > 0 && newFromValue === 0) {
+    (
+      await change.after.ref
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('template', '==', 'check-in')
+        .limit(500)
+        .get()
+    ).forEach(doc => batch.delete(doc.ref));
+  }
+
+  if (oldFromValue !== 0 && newFromValue !== 0 && newFromValue > oldFromValue) {
+    (
+      await change.after.ref
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('template', '==', 'check-in')
+        .where('timestamp', '<', oldFromValue)
+        .limit(500)
+        .get()
+    ).forEach(doc => batch.delete(doc.ref));
+  }
 
   return batch.commit();
 };
@@ -64,27 +66,36 @@ const manageOldCheckins = async change => {
 const manageAddendum = async change => {
   const oldFromValue = change.before.get('lastQueryFrom');
   const newFromValue = change.after.get('lastQueryFrom');
-  /**
-   * Both old and the new values should be available
-   * None should be 0.
-   * The newer value should be greater than the older
-   * value.
-   */
-  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
-    return;
-  }
 
   const batch = db.batch();
 
-  (
-    await rootCollections.updates
-      .doc(change.after.get('uid'))
-      .collection(subcollectionNames.ADDENDUM)
-      .where('timestamp', '<', oldFromValue)
-      .orderBy('timestamp')
-      .limit(500)
-      .get()
-  ).forEach(doc => batch.delete(doc.ref));
+  /**
+   * If user has reinstalled, clear their updates collection addendums
+   */
+  if (newFromValue === 0 && oldFromValue !== 0) {
+    (
+      await rootCollections.updates
+        .doc(change.after.get('uid'))
+        .collection(subcollectionNames.ADDENDUM)
+        .orderBy('timestamp')
+        .limit(500)
+        .get()
+    ).forEach(doc => batch.delete(doc.ref));
+  }
+  /**
+   * Else clear their updates collection from last timestamp (before read request)
+   */
+  if (newFromValue !== 0 && newFromValue > oldFromValue) {
+    (
+      await rootCollections.updates
+        .doc(change.after.get('uid'))
+        .collection(subcollectionNames.ADDENDUM)
+        .where('timestamp', '<', oldFromValue)
+        .orderBy('timestamp')
+        .limit(500)
+        .get()
+    ).forEach(doc => batch.delete(doc.ref));
+  }
 
   return batch.commit();
 };
@@ -226,7 +237,10 @@ const handleCancelledSubscriptions = async change => {
   const oldFromValue = change.before.get('lastQueryFrom');
   const newFromValue = change.after.get('lastQueryFrom');
 
-  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
+  /**
+   * Delete cancelled subscriptions upon reinstall
+   */
+  if (!(oldFromValue > 0 && newFromValue === 0)) {
     return;
   }
 
