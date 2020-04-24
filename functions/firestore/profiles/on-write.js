@@ -34,31 +34,14 @@ const momentTz = require('moment-timezone');
 const env = require('../../admin/env');
 
 const manageOldCheckins = async change => {
-  const oldFromValue = change.before.get('lastQueryFrom');
-  const newFromValue = change.after.get('lastQueryFrom');
-
   const batch = db.batch();
-
-  if (oldFromValue > 0 && newFromValue === 0) {
-    (
-      await change.after.ref
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('template', '==', 'check-in')
-        .limit(500)
-        .get()
-    ).forEach(doc => batch.delete(doc.ref));
-  }
-
-  if (oldFromValue !== 0 && newFromValue !== 0 && newFromValue > oldFromValue) {
-    (
-      await change.after.ref
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('template', '==', 'check-in')
-        .where('timestamp', '<', oldFromValue)
-        .limit(500)
-        .get()
-    ).forEach(doc => batch.delete(doc.ref));
-  }
+  (
+    await change.after.ref
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'check-in')
+      .limit(500)
+      .get()
+  ).forEach(doc => batch.delete(doc.ref));
 
   return batch.commit();
 };
@@ -234,28 +217,17 @@ const handleSignUpAndInstall = async options => {
 };
 
 const handleCancelledSubscriptions = async change => {
-  const oldFromValue = change.before.get('lastQueryFrom');
-  const newFromValue = change.after.get('lastQueryFrom');
-
   /**
-   * Delete cancelled subscriptions upon reinstall
+   * Delete cancelled subscriptions
    */
-  if (!(oldFromValue > 0 && newFromValue === 0)) {
-    return;
-  }
-
   const profileSubscriptions = await change.after.ref
     .collection(subcollectionNames.SUBSCRIPTIONS)
-    .where('timestamp', '<', oldFromValue)
+    .where('status', '==', 'CANCELLED')
     .get();
 
   const batch = db.batch();
 
   profileSubscriptions.forEach(doc => {
-    if (doc.get('status') !== 'CANCELLED') {
-      return;
-    }
-
     batch.delete(doc.ref);
   });
 
