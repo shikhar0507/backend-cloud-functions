@@ -37,7 +37,7 @@ const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
 const SERVICE_NAME = `[timer][on-create]`;
-
+const https = require('https');
 sgMail.setApiKey(env.sgMailApiKey);
 
 const sendErrorReport = async () => {
@@ -240,23 +240,25 @@ module.exports = async timerDoc => {
 
     await deleteInstantDocs();
 
-    module.exports = async () => {
-      if (!env.isProduction) {
-        return;
-      }
-      const url =
-        'https://us-central1-growthfilems.cloudfunctions.net/api/timer';
-      const timer = await rpn(url, {
-        json: true,
-        method: 'GET',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${env.growthfileMsToken}`,
-        },
-        body: undefined,
-      });
-      console.log('resp', timer);
+    const options = {
+      hostname: 'us-central1-growthfilems.cloudfunctions.net',
+      port: 443,
+      path: '/api/timer',
+      method: 'GET',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${env.growthfileMsToken}`,
+      },
     };
+
+    const req = https.request(options, res => {
+      console.log(`statusCode[TimerOnCreate]: ${res.statusCode}`);
+    });
+
+    req.on('error', error => {
+      console.error(error);
+    });
+    req.end();
   } catch (error) {
     console.error(
       `${SERVICE_NAME}[module.exports][catch][error] ${error.message}`,
