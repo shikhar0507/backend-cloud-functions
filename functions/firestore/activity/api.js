@@ -29,7 +29,7 @@ const {
   subcollectionNames,
   dateFormats,
 } = require('../../admin/constants');
-const { db, rootCollections, getGeopointObject } = require('../../admin/admin');
+const { db, rootCollections } = require('../../admin/admin');
 const {
   activityName,
   haversineDistance,
@@ -38,6 +38,8 @@ const {
   validateSchedules,
   isValidRequestBody,
   checkLimitHelper,
+  activityCreator,
+  addendumCreator,
 } = require('./helper');
 const {
   millitaryToHourMinutes,
@@ -242,10 +244,9 @@ const getCustomerObject = async ({ address, location }) => {
 
 const getRoleObject = subscriptionDoc => {
   if (subscriptionDoc) {
-    return subscriptionDoc.get('roleDoc') || null;
+    return subscriptionDoc.get('roleDoc') || '';
   }
-
-  return null;
+  return '';
 };
 
 const getRoleDocument = locals => {
@@ -277,13 +278,37 @@ const getAction = locals => {
 
 const createDocsWithBatch = async (conn, locals) => {
   const batch = db.batch();
-  const canEditMap = {};
+  const addendumDocRef = rootCollections.offices
+    .doc(locals.officeDoc.id)
+    .collection(subcollectionNames.ADDENDUM)
+    .doc();
   const activityRef = rootCollections.activities.doc();
+
+  const canEditMap = {};
   const { value: timezone } = locals.officeDoc.get('attachment.Timezone');
   const { id: activityId } = activityRef;
   const { date, months: month, years: year } = momentTz()
     .tz(timezone)
     .toObject();
+  if (locals.method === 'share') {
+    /**
+     * If the assignee existed , and this is a share request
+     * But the assignee was not shared, the assignee will be deleted
+     * As share api works in overwrite mode
+     */
+    if (locals.assigneesResult && !locals.assigneesResult.empty) {
+      locals.assigneesResult.forEach(assignee => {
+        const phoneNumberExisting = assignee.id;
+        if (locals.mainActivityData.share.indexOf(phoneNumberExisting) === -1) {
+          batch.delete(
+            activityRef
+              .collection(subcollectionNames.ASSIGNEES)
+              .doc(phoneNumberExisting),
+          );
+        }
+      });
+    }
+  }
 
   locals.mainActivityData.share.forEach(phoneNumber => {
     const addToInclude = true;
@@ -294,25 +319,42 @@ const createDocsWithBatch = async (conn, locals) => {
     );
   });
 
-  const addendumDocRef = rootCollections.offices
-    .doc(locals.officeDoc.id)
-    .collection(subcollectionNames.ADDENDUM)
-    .doc();
-  let activityObject = {
-    template: locals.mainActivityData.template,
-    timestamp: Date.now(),
-    venue: locals.mainActivityData.venue,
-    schedule: locals.mainActivityData.schedule,
-    attachment: locals.mainActivityData.attachment,
-    dates: locals.mainActivityData.dates,
-    report: locals.templateDoc.get('report') || null,
-  };
-  if (locals.templateDoc.get('dateConflict') === true) {
-    activityObject.dateConflict = true;
-  }
-  if (locals.templateDoc.get('checkLimit')) {
-    activityObject.checkLimit = locals.templateDoc.get('checkLimit');
-  }
+  let activityMain = activityCreator(
+    {
+      attachment: locals.mainActivityData.attachment,
+      dateConflict: locals.mainActivityData.dateConflict,
+      dates: locals.mainActivityData.dates,
+      venue: locals.mainActivityData.venue,
+      schedule: locals.mainActivityData.schedule,
+      report:
+        locals.conn.req.body.report || locals.templateDoc.get('report') || '',
+      timestamp: Date.now(),
+      office: locals.mainActivityData.office,
+      addendumDocRef,
+      template: locals.mainActivityData.template,
+      status: locals.mainActivityData.status,
+      canEditRule: locals.templateDoc.get('canEditRule'),
+      officeId: locals.officeDoc.id,
+      activityName: activityName({
+        requester: conn.requester,
+        attachmentObject: conn.req.body.attachment,
+        templateName: conn.req.body.template,
+      }),
+      creator: {
+        phoneNumber: conn.requester.phoneNumber,
+        displayName: conn.requester.displayName,
+        photoURL: conn.requester.photoURL,
+      },
+    },
+    {
+      isCancelled: locals.mainActivityData.status === 'CANCELLED',
+      adjustedGeopoints: '',
+      relevantTime: '',
+      scheduleDates: '',
+      relevantTimeAndVenue: '',
+      createTimestamp: '',
+    },
+  );
 
   if (locals.mainActivityData.template === 'customer') {
     const { address } = locals.mainActivityData.venue[0];
@@ -321,8 +363,7 @@ const createDocsWithBatch = async (conn, locals) => {
       address,
       location: locals.mainActivityData.attachment.Name.value,
     });
-
-    activityObject = placesQueryResult;
+    activityMain = placesQueryResult;
 
     if (placesQueryResult.failed) {
       return sendResponse(
@@ -351,47 +392,26 @@ const createDocsWithBatch = async (conn, locals) => {
         conn,
         code.conflict,
         `Customer with the name` +
-          ` '${activityObject.attachment.Name.value} already exists'`,
+          ` '${activityMain.attachment.Name.value} already exists'`,
       );
     }
   }
-  console.log(activityObject.schedule, `schedule`);
-  if (activityObject.schedule.length > 0) {
-    activityObject.relevantTime = getRelevantTime(activityObject.schedule);
-    activityObject.scheduleDates = getScheduleDates(activityObject.schedule);
+
+  if (activityMain.schedule.length > 0) {
+    activityMain.relevantTime = getRelevantTime(activityMain.schedule);
+    activityMain.scheduleDates = getScheduleDates(activityMain.schedule);
   }
 
   // The field `Location` should exist.
   if (
-    activityObject.attachment.Location &&
-    activityObject.attachment.Location.value &&
-    activityObject.relevantTime
+    activityMain.attachment.Location &&
+    activityMain.attachment.Location.value &&
+    activityMain.relevantTime
   ) {
-    activityObject.relevantTimeAndVenue =
-      `${activityObject.attachment.Location.value}` +
-      ` ${activityObject.relevantTime}`;
+    activityMain.relevantTimeAndVenue =
+      `${activityMain.attachment.Location.value}` +
+      ` ${activityMain.relevantTime}`;
   }
-
-  activityObject.createTimestamp = Date.now();
-  activityObject.timestamp = Date.now();
-  activityObject.timezone = timezone;
-  activityObject.office = locals.mainActivityData.office;
-  activityObject.addendumDocRef = addendumDocRef;
-  activityObject.template = locals.mainActivityData.template;
-  activityObject.status = locals.templateDoc.get('statusOnCreate');
-  activityObject.canEditRule = locals.templateDoc.get('canEditRule');
-  activityObject.officeId = locals.officeDoc.id;
-  activityObject.hidden = locals.templateDoc.get('hidden');
-  activityObject.activityName = activityName({
-    requester: conn.requester,
-    attachmentObject: locals.mainActivityData.attachment,
-    templateName: locals.mainActivityData.template,
-  });
-  activityObject.creator = {
-    phoneNumber: conn.requester.phoneNumber,
-    displayName: conn.requester.displayName,
-    photoURL: conn.requester.photoURL,
-  };
 
   const adjustedGeopoints = getAdjustedGeopointsFromVenue(
     locals.mainActivityData.venue,
@@ -407,65 +427,50 @@ const createDocsWithBatch = async (conn, locals) => {
     !templatesToSkip.has(locals.mainActivityData.template) &&
     adjustedGeopoints.length > 0
   ) {
-    activityObject.adjustedGeopoints = adjustedGeopoints[0];
+    activityMain.adjustedGeopoints = adjustedGeopoints[0];
   }
 
-  delete activityObject.relevantTime;
-  const addendumDocObject = {
-    date,
-    month,
-    year,
-    activityData: activityObject,
-    user: conn.requester.phoneNumber,
-    userDisplayName: conn.requester.displayName,
-    uid: conn.requester.uid,
-    /**
-     * Numbers from `attachment`, and all other places will always
-     * be present in the `allPhoneNumbers` set. Using that instead of
-     * the request body `share` to avoid some users being missed
-     * in the `comment`.
-     */
-    share: Array.from(new Set(locals.mainActivityData.share)),
-    action: getAction(locals),
-    template: locals.mainActivityData.template,
-    location: getGeopointObject(locals.mainActivityData.geopoint),
-    timestamp: Date.now(),
-    userDeviceTimestamp: locals.mainActivityData.timestamp,
-    /** The `activityId` field is required by `addendumOnCreate` */
-    activityId: activityRef.id,
-    activityName: activityObject.activityName,
-    isAdminRequest: conn.requester.isAdminRequest,
-    isSupportRequest: conn.requester.isSupportRequest,
-    geopointAccuracy: locals.mainActivityData.geopoint.accuracy || null,
-    provider: locals.mainActivityData.geopoint.provider || null,
-    roleDoc: getRoleDocument(locals),
-  };
-
-  if (
-    locals.mainActivityData.template === 'check-in' &&
-    locals.subscriptionDoc &&
-    locals.subscriptionDoc.get('roleDoc')
-  ) {
-    addendumDocObject.roleDoc = locals.subscriptionDoc.get('roleDoc');
-  }
+  const addendumData = addendumCreator(
+    { timestamp: Date.now(), month, date, year, action: getAction(locals) },
+    {
+      displayName: locals.conn.requester.displayName,
+      phoneNumber: locals.conn.requester.phoneNumber,
+      email: locals.conn.requester.email,
+      displayUrl: locals.conn.requester.displayUrl,
+      isSupportRequest: conn.requester.isSupportRequest,
+      potentialSameUsers: [],
+    },
+    getRoleDocument(locals),
+    {
+      template: locals.mainActivityData.template,
+      name: activityMain.activityName,
+      lat: '',
+      long: '',
+      url: '',
+      route: '',
+      locality: '',
+      adminstrative_area_level_2: '',
+      adminstrative_area_level_1: '',
+      country: '',
+      postalCode: '',
+    },
+    '',
+    '',
+    activityMain,
+  );
 
   if (
     locals.mainActivityData.template === 'check-in' &&
     locals.subscriptionDoc &&
     locals.subscriptionDoc.get('lastGeopoint')
   ) {
-    addendumDocObject.subscriptionDocId = locals.subscriptionDoc.id;
-    addendumDocObject.lastGeopoint = locals.subscriptionDoc.get('lastGeopoint');
-    addendumDocObject.lastTimestamp = locals.subscriptionDoc.get(
-      'lastTimestamp',
-    );
+    addendumData.subscriptionDocId = locals.subscriptionDoc.id;
+    addendumData.lastGeopoint = locals.subscriptionDoc.get('lastGeopoint');
+    addendumData.lastTimestamp = locals.subscriptionDoc.get('lastTimestamp');
   }
-  console.log({
-    activity: JSON.stringify(activityObject),
-  });
 
-  batch.set(addendumDocRef, addendumDocObject);
-  batch.set(activityRef, activityObject);
+  batch.set(addendumDocRef, addendumData);
+  batch.set(activityRef, activityMain);
 
   // handle new assignees
   const newAssigneeSet = new Set(locals.mainActivityData.share);
@@ -478,14 +483,13 @@ const createDocsWithBatch = async (conn, locals) => {
 
   /** For base64 images, upload the json file to bucket */
   if (conn.isBase64 && conn.base64Field) {
-    delete activityObject.addendumDocRef;
-    delete addendumDocObject.activityData.addendumDocRef;
+    delete activityMain.addendumDocRef;
 
     const json = {
       canEditMap,
       activityId,
-      activityData: activityObject,
-      addendumDocObject,
+      activityData: activityMain,
+      addendumData,
       addendumId: addendumDocRef.id,
       base64Field: conn.base64Field,
       requestersPhoneNumber: conn.requester.phoneNumber,
@@ -520,40 +524,6 @@ const handleAssignees = async (conn, locals) => {
 };
 
 const checkDbReadsII = async (conn, locals, result) => {
-  let proceed = true;
-  if (locals.dbReadsII.hasOwnProperty('dateConflict')) {
-    const dateConflictResults = locals.dbReadsII.dateConflict;
-    dateConflictResults.forEach(dateConflictResult => {
-      if (!dateConflictResult.empty) {
-        proceed = false;
-        const day =
-          dateConflictResult.query._queryOptions.fieldFilters[2].value;
-        return sendResponse(
-          conn,
-          code.conflict,
-          'An Attendance Regularisation or Leave has already been marked on ' +
-            day,
-        );
-      }
-    });
-  }
-  if (!proceed) return;
-  // will also add check for checklimit under Db Reads II
-  if (locals.dbReadsII.hasOwnProperty('shouldExist')) {
-    const shouldExist = locals.dbReadsII.shouldExist;
-    shouldExist.forEach(snapShot => {
-      if (snapShot.empty) {
-        proceed = false;
-        const [{ value: name }] = snapShot.query._queryOptions.fieldFilters;
-        sendResponse(
-          conn,
-          code.conflict,
-          `${name} should be present in activity`,
-        );
-      }
-    });
-  }
-  if (!proceed) return;
   if (locals.mainActivityData.template === 'leave') {
     locals.maxLeavesAllowed = Number.POSITIVE_INFINITY;
     locals.leavesTakenThisYear = 0;
@@ -608,7 +578,6 @@ const checkDbReadsII = async (conn, locals, result) => {
     );
 
     if (differenceInMonths > 2) {
-      proceed = false;
       return sendResponse(
         conn,
         code.badRequest,
@@ -621,10 +590,9 @@ const checkDbReadsII = async (conn, locals, result) => {
     const amount = locals.mainActivityData.attachment.Amount.value;
 
     if (!claimType) {
-      proceed = true;
+      // nothing to do here, as of earlier code
     } else {
       if (Number(amount || 0) < 1) {
-        proceed = false;
         return sendResponse(
           conn,
           code.badRequest,
@@ -666,7 +634,6 @@ const checkDbReadsII = async (conn, locals, result) => {
         currencyJs(claimsThisMonth).add(amount).value >
         currencyJs(monthlyLimit).value
       ) {
-        proceed = false;
         return sendResponse(
           conn,
           code.conflict,
@@ -675,7 +642,38 @@ const checkDbReadsII = async (conn, locals, result) => {
       }
     }
   }
-  if (!proceed) return;
+  if (locals.dbReadsII.dateConflict) {
+    const dateConflictResults = locals.dbReadsII.dateConflict;
+    dateConflictResults.forEach(dateConflictResult => {
+      if (!dateConflictResult.empty) {
+        const day =
+          dateConflictResult.query._queryOptions.fieldFilters[2].value;
+        return sendResponse(
+          conn,
+          code.conflict,
+          'An Attendance Regularisation or Leave has already been marked on ' +
+            day,
+        );
+      }
+    });
+  }
+  // will also add check for checklimit under Db Reads II
+  if (locals.dbReadsII.shouldExist.length > 0) {
+    const shouldExist = locals.dbReadsII.shouldExist;
+    shouldExist.forEach(snapShot => {
+      if (snapShot.empty) {
+        const [
+          { value: name },
+          { value: type },
+        ] = snapShot.query._queryOptions.fieldFilters;
+        return sendResponse(
+          conn,
+          code.conflict,
+          `'${name}' with type '${type}' does not exist`,
+        );
+      }
+    });
+  }
   return handleAssignees(conn, locals, result);
 };
 /**
@@ -688,56 +686,55 @@ const checkDbReadsII = async (conn, locals, result) => {
 const handleDbReadsII = async (conn, locals, result) => {
   let stageTwo = false;
   if (
-    locals.dbReadsII.hasOwnProperty('shouldExist') ||
-    locals.dbReadsII.hasOwnProperty('dateConflict') ||
-    locals.dbReadsII.hasOwnProperty('limitDocument') ||
-    locals.dbReadsII.hasOwnProperty('limitQuery') ||
-    locals.dbReadsII.hasOwnProperty('claimChecks')
+    locals.dbReadsII.limitDocument !== null &&
+    locals.dbReadsII.limitQuery !== null &&
+    locals.dbReadsII.claimChecks !== null &&
+    locals.dbReadsII.dateConflict.length > 0 &&
+    locals.dbReadsII.shouldExist.length > 0
   ) {
     stageTwo = true;
   }
   if (stageTwo) {
     // finish for queries to process
     const queryPromisesList = [];
-    if (locals.dbReadsII.hasOwnProperty('shouldExist')) {
-      queryPromisesList.push(locals.dbReadsII.shouldExist);
-    }
-    if (locals.dbReadsII.hasOwnProperty('dateConflict')) {
-      queryPromisesList.push(locals.dbReadsII.dateConflict);
-    }
-    if (locals.dbReadsII.hasOwnProperty('limitDocument')) {
+    if (locals.dbReadsII.limitDocument !== null) {
       queryPromisesList.push(locals.dbReadsII.limitDocument);
     }
-    if (locals.dbReadsII.hasOwnProperty('limitQuery')) {
+    if (locals.dbReadsII.limitQuery !== null) {
       queryPromisesList.push(locals.dbReadsII.limitQuery);
     }
-    if (locals.dbReadsII.hasOwnProperty('claimChecks')) {
-      queryPromisesList.push(locals.dbReadsII.claimChecks);
+    if (locals.dbReadsII.claimChecks) {
+      // claim checks if not null should be an array from
+      // checkLimitHelper
+      queryPromisesList.push(...locals.dbReadsII.claimChecks);
     }
+    if (locals.dbReadsII.dateConflict.length > 0) {
+      queryPromisesList.push(...locals.dbReadsII.dateConflict);
+    }
+    if (locals.dbReadsII.shouldExist.length > 0) {
+      queryPromisesList.push(...locals.dbReadsII.shouldExist);
+    }
+    // wait for all queries to finish asynchronously
     await Promise.all(queryPromisesList);
-    if (locals.dbReadsII.hasOwnProperty('shouldExist')) {
-      locals.dbReadsII.shouldExist = await Promise.all(
-        locals.dbReadsII.shouldExist,
+    if (locals.dbReadsII.limitDocument !== null) {
+      locals.dbReadsII.limitDocument = await locals.dbReadsII.limitDocument;
+    }
+    if (locals.dbReadsII.limitQuery !== null) {
+      locals.dbReadsII.limitQuery = await locals.dbReadsII.limitQuery;
+    }
+    if (locals.dbReadsII.claimChecks) {
+      locals.dbReadsII.claimChecks = await Promise.all(
+        locals.dbReadsII.claimChecks,
       );
     }
-    if (locals.dbReadsII.hasOwnProperty('dateConflict')) {
+    if (locals.dbReadsII.dateConflict.length > 0) {
       locals.dbReadsII.dateConflict = await Promise.all(
         locals.dbReadsII.dateConflict,
       );
     }
-    if (locals.dbReadsII.hasOwnProperty('limitDocument')) {
-      locals.dbReadsII.limitDocument = await Promise.all(
-        locals.dbReadsII.limitDocument,
-      );
-    }
-    if (locals.dbReadsII.hasOwnProperty('limitQuery')) {
-      locals.dbReadsII.limitQuery = await Promise.all(
-        locals.dbReadsII.limitQuery,
-      );
-    }
-    if (locals.dbReadsII.hasOwnProperty('claimChecks')) {
-      locals.dbReadsII.claimChecks = await Promise.all(
-        locals.dbReadsII.claimChecks,
+    if (locals.dbReadsII.shouldExist.length > 0) {
+      locals.dbReadsII.shouldExist = await Promise.all(
+        locals.dbReadsII.shouldExist,
       );
     }
     return checkDbReadsII(conn, locals, result);
@@ -990,13 +987,6 @@ const validatePermissions = ({
       ` with the office '${office}'`
     );
   }
-
-  const { status } = officeDoc.data();
-
-  if (status === 'CANCELLED') {
-    return `The office status is 'CANCELLED'. Cannot create an activity`;
-  }
-
   return null;
 };
 
@@ -1030,7 +1020,6 @@ const createLocals = async (
   ],
   method,
 ) => {
-  assigneesResult.toString();
   let mainActivityData;
   if (profileResult.exists) {
     if (!checkProfile(profileResult, conn)) {
@@ -1054,18 +1043,35 @@ const createLocals = async (
         `You cannot edit this activity`,
       );
     }
-    if (
-      sameNameResult &&
-      !sameNameResult.empty &&
-      existingActivityResult.id !== sameNameResult.docs[0].id &&
-      conn.req.body.status === 'CONFIRMED'
-    ) {
-      return sendResponse(
-        conn,
-        code.forbidden,
-        `Another CONFIRMED activity with same Name found`,
-      );
+    // change status doesn not have status change
+    if (method !== 'share') {
+      if (
+        sameNameResult &&
+        !sameNameResult.empty &&
+        existingActivityResult.id !== sameNameResult.docs[0].id &&
+        conn.req.body.status === 'CONFIRMED'
+      ) {
+        return sendResponse(
+          conn,
+          code.forbidden,
+          `Another CONFIRMED activity with same Name found`,
+        );
+      }
+      if (
+        samePhoneNumberResult &&
+        !samePhoneNumberResult.empty &&
+        samePhoneNumberResult.docs[0].id !== existingActivityResult.id
+      ) {
+        return sendResponse(
+          conn,
+          code.forbidden,
+          'Another activity with same PhoneNumber exists',
+        );
+      }
     }
+    // if same phone number activity exists and is not the same as
+    // the one in updation, prohibit it
+
     mainActivityData = Object.assign(
       {},
       existingActivityResult.data(),
@@ -1103,12 +1109,18 @@ const createLocals = async (
     mainActivityData = Object.assign({}, conn.req.body);
   }
   /**
-   * Type definition for locals
-   * @type {{ activityId:any, dbReadsII: {shouldExist: []}, officeDoc: *, conn: *, method: *, templateDoc: *, subscriptionDoc: *, profileDoc: *, mainActivityData: *}}
+   * @type {{dbReadsII: {limitQuery: null, shouldExist: [], limitDocument: null, dateConflict: [], claimChecks: null}, officeDoc: *, conn: *, method: *, templateDoc: *, subscriptionDoc: *, profileDoc: *, mainActivityData: *}}
    */
   const locals = {
+    assigneesResult,
     method,
-    dbReadsII: { shouldExist: [] },
+    dbReadsII: {
+      limitDocument: null,
+      limitQuery: null,
+      claimChecks: null,
+      dateConflict: [],
+      shouldExist: [],
+    },
     templateDoc,
     officeDoc,
     subscriptionDoc,
@@ -1168,7 +1180,7 @@ const createLocals = async (
       );
     });
   } else {
-    locals.mainActivityData.dateConflict = false;
+    locals.mainActivityData.dateConflict = [];
   }
   // the following code accept a limit parameter and fetches the appropriate activities to allow
   // limit based checking
@@ -1300,11 +1312,11 @@ module.exports = async conn => {
     } else {
       promises.push(Promise.resolve(null));
     }
-    if (conn.req.body.activityId) {
+    if (method === 'share') {
       promises.push(
         rootCollections.activities
           .doc(conn.req.body.activityId)
-          .collection('Assignees')
+          .collection(subcollectionNames.ASSIGNEES)
           .get(),
       );
     } else {

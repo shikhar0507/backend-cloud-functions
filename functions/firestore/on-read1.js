@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -333,12 +333,7 @@ const getSingleReimbursement = doc => {
     timestamp: Date.now(),
     amount: doc.get('amount'),
     _type: addendumTypes.REIMBURSEMENT,
-    key: momentTz()
-      .date(date)
-      .month(month)
-      .year(year)
-      .startOf('day')
-      .valueOf(),
+    key: momentTz().date(date).month(month).year(year).startOf('day').valueOf(),
     id: `${date}${month}${year}${doc.id}`,
     reimbursementType: doc.get('reimbursementType'),
     reimbursementName: doc.get('reimbursementName') || null,
@@ -360,8 +355,6 @@ const getMonthlyReimbursement = async ({
   phoneNumber,
   jsonObject,
 }) => {
-  console.log('sending reimbursements', officeId);
-
   const momentToday = momentTz();
   const momentPrevMonth = momentToday.clone().subtract(1, 'month');
   const getReimbursementRef = (month, year) => {
@@ -406,39 +399,44 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
     const venue = activity.get('venue');
     if (venue && Array.isArray(venue) && venue.length > 0) {
       jsonObject.locations.push(
-        Object.assign({}, activity.data(), { activityId: activity.id },{
-            addendumDocRef:null,assignees:[]
-        }),
+        Object.assign(
+          {},
+          activity.data(),
+          { activityId: activity.id },
+          {
+            addendumDocRef: null,
+            assignees: [],
+          },
+        ),
       );
       return;
     }
     if (activity.get('template') === 'product') {
       jsonObject.products.push(
-        Object.assign({}, activity.data(), { activityId: activity.id },{
-            addendumDocRef:null,assignees:[]
-        }),
+        Object.assign(
+          {},
+          activity.data(),
+          { activityId: activity.id },
+          {
+            addendumDocRef: null,
+            assignees: [],
+          },
+        ),
       );
       return;
     }
     jsonObject.activities.push(
-      Object.assign({}, activity.data(), { activityId: activity.id },{
-          addendumDocRef:null,assignees:[]
-      }),
+      Object.assign(
+        {},
+        activity.data(),
+        { activityId: activity.id },
+        {
+          addendumDocRef: null,
+          assignees: [],
+        },
+      ),
     );
     return;
-  });
-};
-
-const getPayments = async ({ jsonObject, officeId }) => {
-  // not implementing payments for now
-  const checkPayments = false;
-  if (!checkPayments) {
-    return;
-  }
-  (
-    await rootCollections.payments.where('officeId', '==', officeId).get()
-  ).forEach(doc => {
-    jsonObject.payments.push(doc.data());
   });
 };
 
@@ -619,6 +617,9 @@ const read = async conn => {
       return;
     }
     const templateDoc = templatesMap.get(template);
+    if (!templateDoc) {
+      return;
+    }
     const { canEditRule } = templateDoc;
     templatePromises.push(
       rootCollections.activityTemplates
@@ -745,14 +746,6 @@ const read = async conn => {
     const officesFromSubscriptions = await getOfficesFromSubscriptions({
       phoneNumber,
     });
-    await Promise.all(
-      officesFromSubscriptions.map(office =>
-        getPayments({
-          jsonObject,
-          officeId: employeeOf[office],
-        }),
-      ),
-    );
     await Promise.all(
       officesFromSubscriptions.map(office =>
         sortOfficeActivities({
