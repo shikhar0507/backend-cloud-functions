@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -32,6 +32,27 @@ const {
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const env = require('../../admin/env');
+const rpn = require('request-promise-native');
+
+const profileIntegrationMS = async change => {
+  try {
+    const integrationData = { phoneNumber: change.before.id };
+    if (change.after.data()) {
+      integrationData.new = change.after.data();
+    }
+    const uri = `https://us-central1-growthfilems.cloudfunctions.net/api/profile`;
+    await rpn(uri, {
+      method: 'PUT',
+      json: true,
+      headers: {
+        Authorization: `Bearer ${env.growthfileMsToken}`,
+      },
+      body: integrationData,
+    });
+  } catch (error) {
+    console.error(error);
+  }
+};
 
 const manageOldCheckins = async change => {
   const batch = db.batch();
@@ -321,6 +342,9 @@ module.exports = async change => {
     await manageAddendum(change);
     await manageOldCheckins(change);
     await handleCancelledSubscriptions(change);
+
+    // send profile changes to growthfilems project
+    await profileIntegrationMS(change);
 
     if (!toSendSMS || !office) {
       return;
