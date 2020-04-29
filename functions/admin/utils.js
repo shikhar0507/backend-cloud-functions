@@ -1593,7 +1593,7 @@ const growthfileMsRequester = async ({
   if (!env.isProduction) {
     return;
   }
-  
+
   return rpn(url.resolve(env.msActivityUrl, `api${resourcePath}`), {
     body,
     method,

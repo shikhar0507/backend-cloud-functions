@@ -29,8 +29,7 @@ const msRequestTypes = {
 
 /** Api Endpoints for growthfileMS */
 const msEndpoints = {
-  ACTIVITY: '/activity'
-  
+  ACTIVITY: '/activity',
 };
 
 /** Types allowed for the field `type` in the attachment object. */
