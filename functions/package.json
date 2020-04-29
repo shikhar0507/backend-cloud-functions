@@ -8,7 +8,9 @@
     "shell": "firebase functions:shell",
     "lint": "./node_modules/.bin/eslint .",
     "serve": "firebase serve --only functions",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "prettier": "node_modules/.bin/prettier --write .",
+    "doctor": "npm run lint && npm run prettier"
   },
   "author": {
     "name": "Utkarsh Bhatt",
