@@ -1289,6 +1289,7 @@ const createNewProfiles = async ({ newPhoneNumbersSet, smsContext }) => {
   const profilePromises = [];
 
   const promiseCreator = phoneNumber => {
+    if (!phoneNumber) {return;}
     profilePromises.push(rootCollections.profiles.doc(phoneNumber).get());
   };
 
@@ -4666,6 +4667,7 @@ const handleProfile = async change => {
     // Check-ins are sent to users via `Updates/{uid}/Addendum/` collection
     if (template !== 'check-in') {
       // in profile
+      if (!phoneNumber) {return;}
       batch.set(
         rootCollections.profiles
           .doc(phoneNumber)
