@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -736,6 +736,8 @@ const handleSubscription = async locals => {
         attachment: templateDoc.get('attachment'),
         venue: templateDoc.get('venue'),
         schedule: templateDoc.get('schedule'),
+        template: subscribedTemplate,
+        report: templateDoc.get('report') || '',
       }),
       { merge: true },
     );
@@ -1615,7 +1617,7 @@ const getCommentObject = ({ addendumDoc, activityId, comment }) => ({
   _type: addendumTypes.COMMENT,
   isComment: isComment(addendumDoc.get('action')),
   timestamp: addendumDoc.get('userDeviceTimestamp') || Date.now(),
-  location: addendumDoc.get('location'),
+  location: addendumDoc.get('location') || '',
   user: addendumDoc.get('user'),
 });
 

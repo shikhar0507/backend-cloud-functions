@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -27,8 +27,23 @@ const { sendResponse, getISO8601Date } = require('../../admin/utils');
 const { db, rootCollections } = require('../../admin/admin');
 const { code } = require('../../admin/responses');
 
-const validator = ({ source, medium, campaign, office, action }) => {
-  const validatedObject = { source, medium, campaign, office, action };
+const handleCampaign = require('./utility/handleCampaign');
+
+const getAcquisitionObject = inputAcquisition => {
+  const acquisitionToPush = {};
+  ['source', 'medium', 'campaign', 'office'].forEach(acquisitionField => {
+    if (
+      inputAcquisition.hasOwnProperty(acquisitionField) &&
+      inputAcquisition[acquisitionField] !== null
+    ) {
+      acquisitionToPush[acquisitionField] = inputAcquisition[acquisitionField];
+    }
+  });
+  return acquisitionToPush;
+};
+
+const validator = ({ source, medium, campaign, office }) => {
+  const validatedObject = { source, medium, campaign, office };
   // these are currently optional , may be validated in future
   validatedObject.toString();
   return false;
@@ -52,7 +67,7 @@ module.exports = async conn => {
   if (validationResult) {
     return sendResponse(conn, code.badRequest, validationResult);
   }
-  const { source, medium, campaign, office, action } = conn.req.body;
+  const { source, medium, campaign, office } = conn.req.body;
 
   const batch = db.batch();
   const [profileDoc, timerDoc] = await Promise.all([
@@ -74,14 +89,31 @@ module.exports = async conn => {
     );
   }
 
-  const acquisitionArray = profileDoc.get('acquisition') || [];
-  acquisitionArray.push({
+  const acquisitionArray = profileDoc.get('acquisitions') || [];
+  const acquisitionFiltered = getAcquisitionObject({
     source,
     medium,
     campaign,
     office,
-    action,
   });
+  acquisitionArray.push(acquisitionFiltered);
+
+  if (campaign && !office) {
+    return sendResponse(
+      conn,
+      code.forbidden,
+      'Campaign must be associated with a office',
+    );
+  }
+  if (campaign && office) {
+    try {
+      // handle errors in subscription granting
+      await handleCampaign(conn, campaign);
+    } catch (error) {
+      // a response must already be sent
+      return;
+    }
+  }
 
   batch.set(
     profileDoc.ref,

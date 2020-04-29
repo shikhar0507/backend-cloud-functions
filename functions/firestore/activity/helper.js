@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -1300,39 +1300,34 @@ const attendanceConflictHandler = async ({ schedule, phoneNumber, office }) => {
  * @param code
  */
 const checkLimitHelper = ({ locals, sendResponse, code }) => {
-  locals.dbReadsII.checkLimit = [];
   const { template } = locals.mainActivityData;
   if (template === 'leave') {
     const startMoment = momentTz(locals.mainActivityData.schedule[0].endTime);
     const endMoment = momentTz(locals.mainActivityData.schedule[0].endTime);
-    locals.dbReadsII.limitDocument = [
-      rootCollections.activities
-        .where('office', '==', locals.officeDoc.get('office'))
-        .where('template', '==', 'leave-type')
-        .where(
-          'attachment.Name.value',
-          '==',
-          locals.mainActivityData.attachment['Leave Type'].value,
-        )
-        .limit(1)
-        .get(),
-    ];
-    locals.dbReadsII.limitQuery = [
-      locals.officeDoc.ref
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('creator', '==', locals.conn.requester.phoneNumber)
-        .where('template', '==', 'leave')
-        .where(
-          'attachment.Leave Type.value',
-          '==',
-          locals.mainActivityData.attachment['Leave Type'].value,
-        )
-        .where('startYear', '==', startMoment.year())
-        .where('endYear', '==', endMoment.year())
-        /** Cancelled leaves don't count to the full number */
-        .where('status', '==', 'CONFIRMED')
-        .get(),
-    ];
+    locals.dbReadsII.limitDocument = rootCollections.activities
+      .where('office', '==', locals.officeDoc.get('office'))
+      .where('template', '==', 'leave-type')
+      .where(
+        'attachment.Name.value',
+        '==',
+        locals.mainActivityData.attachment['Leave Type'].value,
+      )
+      .limit(1)
+      .get();
+    locals.dbReadsII.limitQuery = locals.officeDoc.ref
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('creator', '==', locals.conn.requester.phoneNumber)
+      .where('template', '==', 'leave')
+      .where(
+        'attachment.Leave Type.value',
+        '==',
+        locals.mainActivityData.attachment['Leave Type'].value,
+      )
+      .where('startYear', '==', startMoment.year())
+      .where('endYear', '==', endMoment.year())
+      /** Cancelled leaves don't count to the full number */
+      .where('status', '==', 'CONFIRMED')
+      .get();
   }
   if (template === 'claim') {
     const claimType = locals.mainActivityData.attachment['Claim Type'].value;
@@ -1360,7 +1355,6 @@ const checkLimitHelper = ({ locals, sendResponse, code }) => {
 
     locals.dbReadsII.claimChecks = [
       baseQuery
-
         .where('template', '==', 'claim')
         .where('creator.phoneNumber', '==', phoneNumber)
         .where('attachment.Claim Type.value', '==', claimType)
@@ -1375,45 +1369,41 @@ const checkLimitHelper = ({ locals, sendResponse, code }) => {
   return true;
 };
 
-const activityCreator = ({
-  attachment,
-  dateConflict = null,
-  dates = [],
-  scheduleConflict = null,
-  venue,
-  schedule,
-  report = '',
-  isCancelled = null,
-  createTimestamp = Date.now(),
-  timestamp = Date.now(),
-  office,
-  addendumDocRef,
-  template,
-  status,
-  canEditRule,
-  officeId,
-  hidden = '',
-  activityName,
-  relevantTime,
-  scheduleDates,
-  relevantTimeAndVenue,
-  creator = {
-    phoneNumber: '',
-    displayName: '',
-    photoURL: '',
-  },
-  adjustedGeopoints,
-}) => {
-  const activity = {
+/**
+ *
+ * @param attachment
+ * @param dateConflict
+ * @param dates
+ * @param scheduleConflict
+ * @param venue
+ * @param schedule
+ * @param report
+ * @param timestamp
+ * @param office
+ * @param addendumDocRef
+ * @param template
+ * @param status
+ * @param canEditRule
+ * @param officeId
+ * @param activityName
+ * @param creator {{displayName:*,phoneNumber:*,photoURL:*}}
+ * @param isCancelled
+ * @param hidden
+ * @param adjustedGeopoints
+ * @param relevantTime
+ * @param scheduleDates
+ * @param relevantTimeAndVenue
+ * @param createTimestamp
+ * @returns {{template: *, adjustedGeopoints: *, venue: *, isCancelled: *, creator, hidden: *, addendumDocRef: *, activityName: *, relevantTimeAndVenue: *, dates: *, office: *, createTimestamp: *, scheduleConflict: *, schedule: *, relevantTime: *, scheduleDates: *, attachment: *, canEditRule: *, officeId: *, report: *, dateConflict: *, timestamp: *, status: *}}
+ */
+const activityCreator = (
+  {
     attachment,
     dateConflict,
     dates,
-    scheduleConflict,
     venue,
     schedule,
     report,
-    isCancelled,
-    createTimestamp,
     timestamp,
     office,
     addendumDocRef,
@@ -1421,15 +1411,138 @@ const activityCreator = ({
     status,
     canEditRule,
     officeId,
-    hidden,
     activityName,
+    creator = {
+      phoneNumber: '',
+      displayName: '',
+      photoURL: '',
+    },
+  },
+  {
+    isCancelled,
+    adjustedGeopoints,
     relevantTime,
     scheduleDates,
     relevantTimeAndVenue,
+    createTimestamp,
+  },
+) => {
+  // this ensures consistency in fields
+  const activity = {
+    attachment,
+    dateConflict,
+    dates,
+    venue,
+    schedule,
+    report,
+    timestamp,
+    office,
+    addendumDocRef,
+    template,
+    status,
+    canEditRule,
+    officeId,
+    activityName,
     creator,
-    adjustedGeopoints,
   };
-  return activity;
+  const nonEssential = {};
+  const optionalFields = {
+    isCancelled,
+    adjustedGeopoints,
+    relevantTime,
+    scheduleDates,
+    relevantTimeAndVenue,
+    createTimestamp,
+  };
+  Object.keys(optionalFields).forEach(activityField => {
+    if (
+      optionalFields.hasOwnProperty(activityField) &&
+      optionalFields[activityField] !== null
+    ) {
+      nonEssential[activityField] = optionalFields[activityField];
+    }
+  });
+  const finalActivityObject = Object.assign({}, activity, nonEssential);
+  return finalActivityObject;
+};
+
+const getAddendumField = (field, object) =>
+  object.hasOwnProperty('field') && object[field] !== null ? object[field] : '';
+
+const getAddendumFinalObject = fieldsSet => {
+  const temporarySet = {};
+  Object.keys(fieldsSet).forEach(addendumField => {
+    temporarySet[addendumField] = getAddendumField(addendumField, fieldsSet);
+  });
+  return temporarySet;
+};
+
+const addendumCreator = (
+  { timestamp, month, date, year, action },
+  {
+    displayName,
+    phoneNumber,
+    email,
+    displayUrl,
+    isSupportRequest,
+    potentialSameUsers,
+  },
+  roleDoc,
+  {
+    template,
+    name,
+    lat,
+    long,
+    url,
+    route,
+    locality,
+    adminstrative_area_level_2,
+    adminstrative_area_level_1,
+    country,
+    postalCode,
+  },
+  distanceFromPrevious = 0.0,
+  distanceAccurate = '',
+  activity,
+) => {
+  const addendumFieldsSet1 = {
+    timestamp,
+    month,
+    date,
+    year,
+    action,
+  };
+  const addendumFieldsSet2 = {
+    displayName,
+    phoneNumber,
+    email,
+    displayUrl,
+    isSupportRequest,
+    potentialSameUsers,
+  };
+  const addendumFieldsSet3 = {
+    template,
+    name,
+    lat,
+    long,
+    url,
+    route,
+    locality,
+    adminstrative_area_level_2,
+    adminstrative_area_level_1,
+    country,
+    postalCode,
+  };
+  const addendum = Object.assign(
+    {},
+    getAddendumFinalObject(addendumFieldsSet1),
+    { user: getAddendumFinalObject(addendumFieldsSet2) },
+    { roleDoc },
+    { location: getAddendumFinalObject(addendumFieldsSet3) },
+    { distanceAccurate, distanceFromPrevious },
+    { activity },
+  );
+  return addendum;
 };
 
 module.exports = {
@@ -1450,4 +1563,5 @@ module.exports = {
   getPhoneNumbersFromAttachment,
   checkLimitHelper,
   activityCreator,
+  addendumCreator,
 };
