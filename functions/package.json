@@ -58,7 +58,7 @@
     "mozjpeg": "^6.0.1",
     "request": "^2.88.0",
     "request-promise-native": "^1.0.8",
-    "uuid": "^3.4.0",
+    "uuid": "^8.0.0",
     "winston": "^3.2.1",
     "xlsx": "^0.15.4",
     "xlsx-populate": "^1.19.1",
