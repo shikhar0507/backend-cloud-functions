@@ -29,7 +29,7 @@ const {
   subcollectionNames,
   dateFormats,
 } = require('../../admin/constants');
-const { db, rootCollections } = require('../../admin/admin');
+const { db, rootCollections, getGeopointObject } = require('../../admin/admin');
 const {
   activityName,
   haversineDistance,
@@ -276,6 +276,59 @@ const getAction = locals => {
   }
 };
 
+const getOldAddendumObject = ({locals,date,month,year,activityData,conn,activityRef}) => {
+  const addendumDocObject = {
+    date,
+    month,
+    year,
+    activityData,
+    user: conn.requester.phoneNumber,
+    userDisplayName: conn.requester.displayName,
+    uid: conn.requester.uid,
+    /**
+     * Numbers from `attachment`, and all other places will always
+     * be present in the `allPhoneNumbers` set. Using that instead of
+     * the request body `share` to avoid some users being missed
+     * in the `comment`.
+     */
+    share: Array.from(new Set(conn.req.body.share)),
+    action: httpsActions.create,
+    template: conn.req.body.template,
+    location: getGeopointObject(conn.req.body.geopoint),
+    timestamp: Date.now(),
+    userDeviceTimestamp: conn.req.body.timestamp,
+    /** The `activityId` field is required by `addendumOnCreate` */
+    activityId: activityRef.id,
+    activityName: activityData.activityName,
+    isAdminRequest: conn.requester.isAdminRequest,
+    isSupportRequest: conn.requester.isSupportRequest,
+    geopointAccuracy: conn.req.body.geopoint.accuracy || null,
+    provider: conn.req.body.geopoint.provider || null,
+    roleDoc: getRoleObject(locals.subscriptionDoc),
+  };
+
+  if (
+      conn.req.body.template === 'check-in' &&
+      locals.subscriptionDoc &&
+      locals.subscriptionDoc.get('roleDoc')
+  ) {
+    addendumDocObject.roleDoc = locals.subscriptionDoc.get('roleDoc');
+  }
+
+  if (
+      conn.req.body.template === 'check-in' &&
+      locals.subscriptionDoc &&
+      locals.subscriptionDoc.get('lastGeopoint')
+  ) {
+    addendumDocObject.subscriptionDocId = locals.subscriptionDoc.id;
+    addendumDocObject.lastGeopoint = locals.subscriptionDoc.get('lastGeopoint');
+    addendumDocObject.lastTimestamp = locals.subscriptionDoc.get(
+        'lastTimestamp',
+    );
+  };
+  return addendumDocObject;
+};
+
 const getActivityWithoutAddendum = (locals) => {
   const activityDoc = Object.assign({},locals.mainActivityData);
   delete activityDoc.addendumDocRef;
@@ -332,8 +385,7 @@ const createDocsWithBatch = async (conn, locals) => {
       dates: locals.mainActivityData.dates,
       venue: locals.mainActivityData.venue,
       schedule: locals.mainActivityData.schedule,
-      report:
-        locals.conn.req.body.report || locals.templateDoc.get('report') || '',
+      report: locals.templateDoc.get('report') || conn.req.body.report ||  '',
       timestamp: Date.now(),
       office: locals.mainActivityData.office,
       addendumDocRef,
@@ -342,14 +394,14 @@ const createDocsWithBatch = async (conn, locals) => {
       canEditRule: locals.templateDoc.get('canEditRule'),
       officeId: locals.officeDoc.id,
       activityName: activityName({
-        requester: locals.conn.requester,
-        attachmentObject: locals.conn.req.body.attachment,
-        templateName: locals.conn.req.body.template,
+        requester: conn.requester,
+        attachmentObject: conn.req.body.attachment,
+        templateName: conn.req.body.template,
       }),
       creator: {
-        phoneNumber: locals.conn.requester.phoneNumber,
-        displayName: locals.conn.requester.displayName,
-        photoURL: locals.conn.requester.photoURL,
+        phoneNumber: conn.requester.phoneNumber,
+        displayName: conn.requester.displayName,
+        photoURL: conn.requester.photoURL,
       },
     },
     {
@@ -358,9 +410,11 @@ const createDocsWithBatch = async (conn, locals) => {
       relevantTime: '',
       scheduleDates: '',
       relevantTimeAndVenue: '',
-      createTimestamp: '',
+      createTimestamp: locals.mainActivityData.createTimestamp || Date.now(),
     },
   );
+
+  activityMain.timezone=timezone;
 
   if (locals.mainActivityData.template === 'customer') {
     const { address } = locals.mainActivityData.venue[0];
@@ -436,29 +490,23 @@ const createDocsWithBatch = async (conn, locals) => {
     activityMain.adjustedGeopoints = adjustedGeopoints[0];
   }
 
+  const oldAddendum = getOldAddendumObject({locals,date,month,year,activityData:activityMain,conn,activityRef});
+
   const addendumData = addendumCreator(
-    { timestamp: Date.now(), month, date, year, action: getAction(locals) },
+    { ms_timestamp: Date.now(), ms_month:month, ms_date:date, ms_year:year, ms_action: getAction(locals) },
     {
-      displayName: locals.conn.requester.displayName,
-      phoneNumber: locals.conn.requester.phoneNumber,
-      email: locals.conn.requester.email,
-      displayUrl: locals.conn.requester.photoURL,
-      isSupportRequest: conn.requester.isSupportRequest,
-      potentialSameUsers: [],
+      ms_displayName: conn.requester.displayName,
+      ms_phoneNumber: conn.requester.phoneNumber,
+      ms_email: conn.requester.email,
+      ms_displayUrl: conn.requester.photoURL,
+      ms_isSupportRequest: conn.requester.isSupportRequest,
+      ms_potentialSameUsers: [],
     },
     getRoleDocument(locals),
     {
-      template: locals.mainActivityData.template,
-      name: activityMain.activityName,
-      lat: '',
-      long: '',
-      url: '',
-      route: '',
-      locality: '',
-      adminstrative_area_level_2: '',
-      adminstrative_area_level_1: '',
-      country: '',
-      postalCode: '',
+      ms_template: locals.mainActivityData.template,
+      ms_name: activityMain.activityName,
+      lat: '',ms_long: '',ms_url: '',ms_route: '',ms_locality: '',ms_adminstrative_area_level_2: '',ms_adminstrative_area_level_1: '',ms_country: '',ms_postalCode: '',
     },
     '',
     '',
@@ -475,7 +523,9 @@ const createDocsWithBatch = async (conn, locals) => {
     addendumData.lastTimestamp = locals.subscriptionDoc.get('lastTimestamp');
   }
 
-  batch.set(addendumDocRef, addendumData);
+  const finalAddendum = Object.assign({},addendumData,oldAddendum);
+
+  batch.set(addendumDocRef, finalAddendum);
   batch.set(activityRef, activityMain);
 
   // handle new assignees

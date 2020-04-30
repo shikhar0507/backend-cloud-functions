@@ -1479,69 +1479,35 @@ const sanitizer = (obj) => {
 };
 
 const addendumCreator = (
-  { timestamp, month, date, year, action },
+  { ms_timestamp, ms_month, ms_date, ms_year, ms_action },
   {
-    displayName,
-    phoneNumber,
-    email,
-    displayUrl,
-    isSupportRequest,
-    potentialSameUsers,
+    ms_displayName,ms_phoneNumber,ms_email,ms_displayUrl,ms_isSupportRequest,ms_potentialSameUsers
   },
-  roleDoc,
+  ms_roleDoc,
   {
-    template,
-    name,
-    lat,
-    long,
-    url,
-    route,
-    locality,
-    adminstrative_area_level_2,
-    adminstrative_area_level_1,
-    country,
-    postalCode,
+    ms_template,ms_name,ms_lat,ms_long,ms_url,ms_route,ms_locality,ms_adminstrative_area_level_2,ms_adminstrative_area_level_1,ms_country,ms_postalCode
   },
-  distanceFromPrevious = 0.0,
-  distanceAccurate = '',
-  activity,
+  ms_distanceFromPrevious = 0.0,
+  ms_distanceAccurate = '',
+  ms_activity,
 ) => {
   const addendumFieldsSet1 = {
-    timestamp,
-    month,
-    date,
-    year,
-    action,
+    ms_timestamp, ms_month, ms_date, ms_year, ms_action
   };
   const addendumFieldsSet2 = {
-    displayName,
-    phoneNumber,
-    email,
-    displayUrl,
-    isSupportRequest,
-    potentialSameUsers,
+    ms_displayName,ms_phoneNumber,ms_email,ms_displayUrl,ms_isSupportRequest,ms_potentialSameUsers
   };
   const addendumFieldsSet3 = {
-    template,
-    name,
-    lat,
-    long,
-    url,
-    route,
-    locality,
-    adminstrative_area_level_2,
-    adminstrative_area_level_1,
-    country,
-    postalCode,
+    ms_template,ms_name,ms_lat,ms_long,ms_url,ms_route,ms_locality,ms_adminstrative_area_level_2,ms_adminstrative_area_level_1,ms_country,ms_postalCode
   };
   const addendum = Object.assign(
     {},
     addendumFieldsSet1,
-    { user: addendumFieldsSet2},
-    { roleDoc },
-    { location: addendumFieldsSet3 },
-    { distanceAccurate, distanceFromPrevious },
-    { activity },
+    { ms_user: addendumFieldsSet2},
+    { ms_roleDoc },
+    { ms_location: addendumFieldsSet3 },
+    { ms_distanceAccurate, ms_distanceFromPrevious },
+    { ms_activity },
   );
 
   return sanitizer(addendum);
