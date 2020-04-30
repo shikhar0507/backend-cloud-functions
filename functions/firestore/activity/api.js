@@ -276,6 +276,12 @@ const getAction = locals => {
   }
 };
 
+const getActivityWithoutAddendum = (locals) => {
+  const activityDoc = Object.assign({},locals.mainActivityData);
+  delete activityDoc.addendumDocRef;
+  return activityDoc;
+};
+
 const createDocsWithBatch = async (conn, locals) => {
   const batch = db.batch();
   const addendumDocRef = rootCollections.offices
@@ -336,14 +342,14 @@ const createDocsWithBatch = async (conn, locals) => {
       canEditRule: locals.templateDoc.get('canEditRule'),
       officeId: locals.officeDoc.id,
       activityName: activityName({
-        requester: conn.requester,
-        attachmentObject: conn.req.body.attachment,
-        templateName: conn.req.body.template,
+        requester: locals.conn.requester,
+        attachmentObject: locals.conn.req.body.attachment,
+        templateName: locals.conn.req.body.template,
       }),
       creator: {
-        phoneNumber: conn.requester.phoneNumber,
-        displayName: conn.requester.displayName,
-        photoURL: conn.requester.photoURL,
+        phoneNumber: locals.conn.requester.phoneNumber,
+        displayName: locals.conn.requester.displayName,
+        photoURL: locals.conn.requester.photoURL,
       },
     },
     {
@@ -436,7 +442,7 @@ const createDocsWithBatch = async (conn, locals) => {
       displayName: locals.conn.requester.displayName,
       phoneNumber: locals.conn.requester.phoneNumber,
       email: locals.conn.requester.email,
-      displayUrl: locals.conn.requester.displayUrl,
+      displayUrl: locals.conn.requester.photoURL,
       isSupportRequest: conn.requester.isSupportRequest,
       potentialSameUsers: [],
     },
@@ -456,7 +462,7 @@ const createDocsWithBatch = async (conn, locals) => {
     },
     '',
     '',
-    activityMain,
+     getActivityWithoutAddendum(locals)
   );
 
   if (
