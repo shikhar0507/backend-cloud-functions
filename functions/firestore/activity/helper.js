@@ -1466,15 +1466,16 @@ const activityCreator = (
   return finalActivityObject;
 };
 
-const getAddendumField = (field, object) =>
-  object.hasOwnProperty('field') && object[field] !== null ? object[field] : '';
 
-const getAddendumFinalObject = fieldsSet => {
-  const temporarySet = {};
-  Object.keys(fieldsSet).forEach(addendumField => {
-    temporarySet[addendumField] = getAddendumField(addendumField, fieldsSet);
-  });
-  return temporarySet;
+const sanitizer = (obj) => {
+  const t = obj;
+  for (const v in t) {
+    if (typeof t[v] == "object")
+      sanitizer(t[v]);
+    else if (t[v] === undefined || t[v] ===null)
+      t[v] = '';
+  }
+  return t;
 };
 
 const addendumCreator = (
@@ -1535,14 +1536,15 @@ const addendumCreator = (
   };
   const addendum = Object.assign(
     {},
-    getAddendumFinalObject(addendumFieldsSet1),
-    { user: getAddendumFinalObject(addendumFieldsSet2) },
+    addendumFieldsSet1,
+    { user: addendumFieldsSet2},
     { roleDoc },
-    { location: getAddendumFinalObject(addendumFieldsSet3) },
+    { location: addendumFieldsSet3 },
     { distanceAccurate, distanceFromPrevious },
     { activity },
   );
-  return addendum;
+
+  return sanitizer(addendum);
 };
 
 module.exports = {
