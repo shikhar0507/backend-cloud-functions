@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -141,18 +141,41 @@ module.exports = async conn => {
     );
   }
 
+  const updateObject = {};
+  if (!(id && id !== '')) {
+    updateObject.latestDeviceId=id;
+  }
+
+  if (!(deviceBrand && deviceBrand !== '')) {
+    updateObject.latestDeviceBrand=deviceBrand;
+  }
+
+  if (!(deviceModel && deviceModel !== '')) {
+    updateObject.latestDeviceModel=deviceModel;
+  }
+
+  if (!(baseOs && baseOs !== '')) {
+    updateObject.latestDeviceOs=baseOs;
+  }
+
+  if (!(appVersion && appVersion !== '')) {
+    updateObject.latestAppVersion=appVersion;
+  }
+
+  if (!(osVersion && osVersion !== '')) {
+    updateObject.latestOsVersion=osVersion;
+  }
+
+  if (!(radioVersion && radioVersion !== '')) {
+    updateObject.latestRadioVersion=radioVersion;
+  }
+  if (!(idbVersion && idbVersion !== '')) {
+    updateObject.latestIdbVersion=idbVersion;
+  }
+
   batch.set(
     updatesDoc.ref,
-    {
-      latestAppVersion: appVersion,
-      latestDeviceBrand: deviceBrand,
-      latestDeviceId: id,
-      latestDeviceModel: deviceModel,
-      latestDeviceOs: baseOs,
-      latestOsVersion: osVersion,
-      latestRadioVersion: radioVersion,
-      latestIdbVersion: idbVersion,
-    },
+    updateObject,
     { merge: true },
   );
 
