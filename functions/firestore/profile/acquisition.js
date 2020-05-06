@@ -105,7 +105,7 @@ module.exports = async conn => {
       'Campaign must be associated with a office',
     );
   }
-  if (campaign && office) {
+  if (campaign==='share_link' && !office) {
     try {
       // handle errors in subscription granting
       await handleCampaign(conn, campaign);
