@@ -1,3 +1,4 @@
+
 /**
  * Copyright (c) 2020 GrowthFile
  *
@@ -73,6 +74,15 @@ const addendumFilter = doc => {
   }
 
   return singleDoc;
+};
+
+const getAssigneeFromDocRef = async (docRef) => {
+  const {docs:assigneeDocuments} = await docRef.collection(subcollectionNames.ASSIGNEES).get();
+  return assigneeDocuments.map(document=>({
+        phoneNumber:document.id,
+        displayName: '',
+        photoURL: '',
+  }));
 };
 
 const getAssigneesArray = (arrayOfPhoneNumbers = []) => {
@@ -395,20 +405,10 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
   if (activities.length === 0) {
     return;
   }
-  activities.forEach(activity => {
+  await Promise.all(activities.map(async activity => {
     const venue = activity.get('venue');
     if (venue && Array.isArray(venue) && venue.length > 0) {
-      jsonObject.locations.push(
-        Object.assign(
-          {},
-          activity.data(),
-          { activityId: activity.id },
-          {
-            addendumDocRef: null,
-            assignees: [],
-          },
-        ),
-      );
+      jsonObject.locations.push(locationFilter(activity));
       return;
     }
     if (activity.get('template') === 'product') {
@@ -432,12 +432,12 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
         { activityId: activity.id },
         {
           addendumDocRef: null,
-          assignees: [],
+          assignees: await getAssigneeFromDocRef(activity.ref),
         },
       ),
     );
     return;
-  });
+  }));
 };
 
 const getOfficesFromSubscriptions = async ({ phoneNumber }) => {
