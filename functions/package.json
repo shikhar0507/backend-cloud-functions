@@ -46,7 +46,7 @@
     "csvtojson": "^2.0.10",
     "currency.js": "^1.2.2",
     "dinero.js": "^1.6.0",
-    "facebook-nodejs-business-sdk": "^6.0.0",
+    "facebook-nodejs-business-sdk": "^7.0.0",
     "firebase-admin": "^8.11.0",
     "firebase-functions": "^3.6.1",
     "google-auth-library": "^4.2.5",
