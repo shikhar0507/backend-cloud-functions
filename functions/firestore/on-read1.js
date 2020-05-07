@@ -1,5 +1,6 @@
+
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -73,6 +74,15 @@ const addendumFilter = doc => {
   }
 
   return singleDoc;
+};
+
+const getAssigneeFromDocRef = async (docRef) => {
+  const {docs:assigneeDocuments} = await docRef.collection(subcollectionNames.ASSIGNEES).get();
+  return assigneeDocuments.map(document=>({
+        phoneNumber:document.id,
+        displayName: '',
+        photoURL: '',
+  }));
 };
 
 const getAssigneesArray = (arrayOfPhoneNumbers = []) => {
@@ -333,12 +343,7 @@ const getSingleReimbursement = doc => {
     timestamp: Date.now(),
     amount: doc.get('amount'),
     _type: addendumTypes.REIMBURSEMENT,
-    key: momentTz()
-      .date(date)
-      .month(month)
-      .year(year)
-      .startOf('day')
-      .valueOf(),
+    key: momentTz().date(date).month(month).year(year).startOf('day').valueOf(),
     id: `${date}${month}${year}${doc.id}`,
     reimbursementType: doc.get('reimbursementType'),
     reimbursementName: doc.get('reimbursementName') || null,
@@ -360,8 +365,6 @@ const getMonthlyReimbursement = async ({
   phoneNumber,
   jsonObject,
 }) => {
-  console.log('sending reimbursements', officeId);
-
   const momentToday = momentTz();
   const momentPrevMonth = momentToday.clone().subtract(1, 'month');
   const getReimbursementRef = (month, year) => {
@@ -391,6 +394,66 @@ const getMonthlyReimbursement = async ({
   });
 
   return;
+};
+
+const sortOfficeActivities = async ({ office, jsonObject }) => {
+  const { docs: activities } = await rootCollections.activities
+    .where('office', '==', office)
+    .where('report', '==', 'type')
+    .where('status', '==', 'CONFIRMED')
+    .get();
+  if (activities.length === 0) {
+    return;
+  }
+  await Promise.all(activities.map(async activity => {
+    const venue = activity.get('venue');
+    if (venue && Array.isArray(venue) && venue.length > 0) {
+      jsonObject.locations.push(locationFilter(activity));
+      return;
+    }
+    if (activity.get('template') === 'product') {
+      jsonObject.products.push(
+        Object.assign(
+          {},
+          activity.data(),
+          { activityId: activity.id },
+          {
+            addendumDocRef: null,
+            assignees: [],
+          },
+        ),
+      );
+      return;
+    }
+    jsonObject.activities.push(
+      Object.assign(
+        {},
+        activity.data(),
+        { activityId: activity.id },
+        {
+          addendumDocRef: null,
+          assignees: await getAssigneeFromDocRef(activity.ref),
+        },
+      ),
+    );
+    return;
+  }));
+};
+
+const getOfficesFromSubscriptions = async ({ phoneNumber }) => {
+  const offices = new Set();
+  (
+    await rootCollections.profiles
+      .doc(phoneNumber)
+      .collection(subcollectionNames.SUBSCRIPTIONS)
+      .where('status', '==', 'CONFIRMED')
+      .get()
+  ).forEach(subscription => {
+    if (subscription.get('office')) {
+      offices.add(subscription.get('office'));
+    }
+  });
+  return Array.from(offices);
 };
 
 const getProducts = async ({
@@ -444,6 +507,8 @@ const getProfileSubcollectionPromise = ({ subcollection, phoneNumber, from }) =>
     .get();
 
 const read = async conn => {
+  const requestTime = Date.now();
+
   const v = validateRequest(conn);
 
   if (v) {
@@ -451,21 +516,14 @@ const read = async conn => {
   }
 
   const batch = db.batch();
-  const {
-    employeeOf,
-    customClaims,
-    phoneNumber,
-    uid,
-    profileDoc,
-  } = conn.requester;
+  const { employeeOf, customClaims, phoneNumber, uid } = conn.requester;
   const officeList = Object.keys(employeeOf || {});
   const from = parseInt(conn.req.query.from);
   const isInitRequest = from === 0;
   const locationPromises = [];
   const templatePromises = [];
   const templatesMap = new Map();
-  const sendLocations =
-    profileDoc && profileDoc.get('lastLocationMapUpdateTimestamp') > from;
+  const sendLocations = isInitRequest;
   const jsonObject = {
     from,
     upto: from,
@@ -478,15 +536,19 @@ const read = async conn => {
     attendances: [],
     reimbursements: [],
   };
-
-  const promises = [
-    rootCollections.updates
-      .doc(uid)
-      .collection(subcollectionNames.ADDENDUM)
-      .where('timestamp', '>', from)
-      .orderBy('timestamp', 'asc')
-      .get(),
-  ];
+  const promises = [];
+  if (isInitRequest) {
+    promises.push(Promise.resolve(false));
+  } else {
+    promises.push(
+      rootCollections.updates
+        .doc(uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .where('timestamp', '>', from)
+        .orderBy('timestamp', 'asc')
+        .get(),
+    );
+  }
 
   if (isInitRequest) {
     promises.push(
@@ -525,8 +587,10 @@ const read = async conn => {
   ] = await Promise.all([Promise.all(promises), Promise.all(locationPromises)]);
 
   (subscriptions || []).forEach(doc => {
-    const { template } = doc.data();
-
+    const template = doc.get('attachment.Template.value');
+    if (!template) {
+      return;
+    }
     templatePromises.push(
       rootCollections.activityTemplates
         .where('name', '==', template)
@@ -548,8 +612,15 @@ const read = async conn => {
   });
 
   (subscriptions || []).forEach(doc => {
-    const { template, canEditRule } = doc.data();
-
+    const template = doc.get('attachment.Template.value');
+    if (!template) {
+      return;
+    }
+    const templateDoc = templatesMap.get(template);
+    if (!templateDoc) {
+      return;
+    }
+    const { canEditRule } = templateDoc;
     templatePromises.push(
       rootCollections.activityTemplates
         .where('name', '==', template)
@@ -562,14 +633,13 @@ const read = async conn => {
       return;
     }
 
-    const templateDoc = templatesMap.get(template);
-
     if (!templateDoc) {
       return;
     }
 
     jsonObject.templates.push(
       Object.assign({}, subscriptionFilter(doc), {
+        template,
         activityId: doc.id,
         report: templateDoc.get('report') || null,
         schedule: templateDoc.get('schedule'),
@@ -594,53 +664,55 @@ const read = async conn => {
     });
   });
 
-  addendum.forEach(doc => {
-    const type = doc.get('_type') || doc.get('type');
+  if (!isInitRequest) {
+    addendum.forEach(doc => {
+      const type = doc.get('_type') || doc.get('type');
 
-    if (type === addendumTypes.SUBSCRIPTION) {
-      jsonObject.templates.push(
-        Object.assign({}, subscriptionFilter(doc), {
-          activityId: doc.get('activityId'),
-        }),
-      );
+      if (type === addendumTypes.SUBSCRIPTION) {
+        jsonObject.templates.push(
+          Object.assign({}, subscriptionFilter(doc), {
+            activityId: doc.get('activityId'),
+          }),
+        );
 
-      return;
-    }
+        return;
+      }
 
-    if (type === addendumTypes.ACTIVITY) {
-      jsonObject.activities.push(
-        activityFilter(doc, customClaims, employeeOf, phoneNumber),
-      );
+      if (type === addendumTypes.ACTIVITY) {
+        jsonObject.activities.push(
+          activityFilter(doc, customClaims, employeeOf, phoneNumber),
+        );
 
-      return;
-    }
+        return;
+      }
 
-    if (type === addendumTypes.ATTENDANCE) {
-      jsonObject.attendances.push(doc.data());
+      if (type === addendumTypes.ATTENDANCE) {
+        jsonObject.attendances.push(doc.data());
 
-      return;
-    }
+        return;
+      }
 
-    if (type === addendumTypes.PAYMENT) {
-      jsonObject.payments.push(doc.data());
+      if (type === addendumTypes.PAYMENT) {
+        jsonObject.payments.push(doc.data());
 
-      return;
-    }
+        return;
+      }
 
-    if (type === addendumTypes.REIMBURSEMENT) {
-      jsonObject.reimbursements.push(doc.data());
+      if (type === addendumTypes.REIMBURSEMENT) {
+        jsonObject.reimbursements.push(doc.data());
 
-      return;
-    }
+        return;
+      }
 
-    if (type === addendumTypes.PRODUCT) {
-      jsonObject.products.push(doc.data());
+      if (type === addendumTypes.PRODUCT) {
+        jsonObject.products.push(doc.data());
 
-      return;
-    }
+        return;
+      }
 
-    jsonObject.addendum.push(addendumFilter(doc));
-  });
+      jsonObject.addendum.push(addendumFilter(doc));
+    });
+  }
 
   const profileUpdate = { lastQueryFrom: from };
 
@@ -656,8 +728,32 @@ const read = async conn => {
 
   await batch.commit();
 
-  if (!addendum.empty) {
-    jsonObject.upto = addendum.docs[addendum.size - 1].get('timestamp');
+  if (!isInitRequest) {
+    if (!addendum.empty) {
+      jsonObject.upto = addendum.docs[addendum.size - 1].get('timestamp');
+    }
+  } else {
+    jsonObject.upto = requestTime;
+  }
+
+  /**
+   * Get all offices from subscriptions
+   * Get all activities from root where report:'type'
+   * Sort them into products,locations,activities
+   * Also get all respective payments and give it to user
+   */
+  if (isInitRequest) {
+    const officesFromSubscriptions = await getOfficesFromSubscriptions({
+      phoneNumber,
+    });
+    await Promise.all(
+      officesFromSubscriptions.map(office =>
+        sortOfficeActivities({
+          jsonObject,
+          office,
+        }),
+      ),
+    );
   }
 
   if (isInitRequest) {

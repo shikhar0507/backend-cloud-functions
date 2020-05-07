@@ -24,21 +24,15 @@
 'use strict';
 
 const { db, rootCollections } = require('../admin/admin');
-const {
-  reportNames,
-  dateFormats,
-  msEndpoints,
-  msRequestTypes,
-} = require('../admin/constants');
+const { reportNames, dateFormats } = require('../admin/constants');
 const moment = require('moment');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
-const { growthfileMsRequester } = require('../admin/utils');
 const SERVICE_NAME = `[timer][on-create]`;
-
+const https = require('https');
 sgMail.setApiKey(env.sgMailApiKey);
 
 const sendErrorReport = async () => {
@@ -202,9 +196,7 @@ module.exports = async timerDoc => {
       fetchExternalTokens(timerDoc),
     ]);
 
-    const momentYesterday = moment()
-      .subtract(1, 'day')
-      .startOf('day');
+    const momentYesterday = moment().subtract(1, 'day').startOf('day');
 
     const [recipientsQuery, counterDocsQuery] = await Promise.all([
       rootCollections.recipients.get(),
@@ -243,11 +235,25 @@ module.exports = async timerDoc => {
 
     await deleteInstantDocs();
 
-    return growthfileMsRequester({
-      payload: {},
-      method: msRequestTypes.TIMER,
-      resourcePath: msEndpoints.TIMER,
+    const options = {
+      hostname: 'us-central1-growthfilems.cloudfunctions.net',
+      port: 443,
+      path: '/api/timer',
+      method: 'GET',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${env.growthfileMsToken}`,
+      },
+    };
+
+    const req = https.request(options, res => {
+      console.log(`statusCode[TimerOnCreate]: ${res.statusCode}`);
     });
+
+    req.on('error', error => {
+      console.error(error);
+    });
+    req.end();
   } catch (error) {
     console.error(
       `${SERVICE_NAME}[module.exports][catch][error] ${error.message}`,

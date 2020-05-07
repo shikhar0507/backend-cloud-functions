@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -23,74 +23,24 @@
 
 'use strict';
 
-const { Attachment, Creator } = require('../admin/protos');
-const { rootCollections, getGeopointObject, db } = require('../admin/admin');
-const { httpsActions, subcollectionNames } = require('../admin/constants');
+const { Attachment, Creator } = require('../../../admin/protos');
+const { rootCollections, db } = require('../../../admin/admin');
 const {
-  isValidEmail,
-  isValidDate,
-  isNonEmptyString,
-  sendResponse,
-  isValidGeopoint,
-  handleError,
-} = require('../admin/utils');
-const { code } = require('../admin/responses');
+  httpsActions,
+  subcollectionNames,
+} = require('../../../admin/constants');
+const { isNonEmptyString, sendResponse } = require('../../../admin/utils');
+const { code } = require('../../../admin/responses');
 const momentTz = require('moment-timezone');
 
-const grantSubscription = async conn => {
-  if (conn.req.method !== 'POST') {
-    return sendResponse(
-      conn,
-      code.methodNotAllowed,
-      `${conn.req.method} is not allowed. use 'POST'`,
-    );
-  }
-
+const grantSubscription = async (conn, templateToGrant) => {
   const { phoneNumber, displayName, photoURL, uid } = conn.requester;
-  const { office, geopoint, timestamp, share } = conn.req.body;
-
-  if (!isValidDate(timestamp)) {
-    return sendResponse(conn, code.badRequest, `Invalid/missing 'timestamp'`);
-  }
+  console.log(`grantSubscription`, templateToGrant, conn.requester.phoneNumber);
+  const { office } = conn.req.body;
 
   if (!isNonEmptyString(office)) {
-    return sendResponse(conn, code.badRequest, `Field 'office' is required`);
-  }
-
-  if (!isValidGeopoint(geopoint, false)) {
-    return sendResponse(conn, code.badRequest, `Invalid/missing geopoint`);
-  }
-
-  if (!Array.isArray(share)) {
-    return sendResponse(
-      conn,
-      code.badRequest,
-      `Field share should be an array of objects ({phoneNumber, displayName, email})`,
-    );
-  }
-
-  const validItems = share.filter(({ phoneNumber, displayName, email }) => {
-    if (!isNonEmptyString(phoneNumber)) {
-      return false;
-    }
-
-    if (typeof displayName === 'undefined') {
-      return false;
-    }
-
-    if (email && !isValidEmail(email)) {
-      return false;
-    }
-
-    return true;
-  });
-
-  if (validItems.length !== share.length) {
-    return sendResponse(
-      conn,
-      code.badRequest,
-      `Field share should be an array of objects ({phoneNumber, displayName, email})`,
-    );
+    sendResponse(conn, code.badRequest, `Field 'office' is required`);
+    throw new Error();
   }
 
   const [
@@ -107,7 +57,7 @@ const grantSubscription = async conn => {
       .where('office', '==', office)
       .where('template', '==', 'subscription')
       .where('attachment.Phone Number.value', '==', phoneNumber)
-      .where('attachment.Template.value', '==', 'check-in')
+      .where('attachment.Template.value', '==', templateToGrant)
       .get(),
     rootCollections.offices.where('office', '==', office).limit(1).get(),
     rootCollections.activityTemplates
@@ -137,24 +87,17 @@ const grantSubscription = async conn => {
   });
 
   if (!officeDoc) {
-    return sendResponse(
-      conn,
-      code.conflict,
-      `Office '${office} does not exist'`,
-    );
+    sendResponse(conn, code.conflict, `Office '${office} does not exist'`);
+    throw new Error();
   }
 
   if (officeDoc.get('status') === 'CANCELLED') {
-    return sendResponse(conn, code.conflict, `Office: '${office}' is inactive`);
+    sendResponse(conn, code.conflict, `Office: '${office}' is inactive`);
+    throw new Error();
   }
 
   if (checkInSubscriptionsMap.size > 1) {
-    // user already has subscription of check-in
-    return sendResponse(
-      conn,
-      code.conflict,
-      `You already have check-in subscription`,
-    );
+    return true;
   }
 
   if (checkInSubscriptionsMap.has(office)) {
@@ -168,12 +111,9 @@ const grantSubscription = async conn => {
       },
       { merge: true },
     );
-
-    return sendResponse(conn, code.created, 'Check-in subscription created.');
+    return true;
   }
-
-  const oldShare = [phoneNumber, ...share.map(item => item.phoneNumber)];
-
+  const share = [];
   if (roleDoc) {
     const { attachment } = roleDoc.data();
 
@@ -191,7 +131,7 @@ const grantSubscription = async conn => {
   const batch = db.batch();
   const momentNow = momentTz().tz(timezone);
   const { date, months: month, years: year } = momentNow.toObject();
-  const allAssignees = Array.from(oldShare.filter(Boolean));
+  const allAssignees = Array.from(share.filter(Boolean));
 
   allAssignees.forEach(phoneNumber => {
     batch.set(
@@ -220,14 +160,13 @@ const grantSubscription = async conn => {
     attachment: new Attachment(
       {
         'Phone Number': phoneNumber,
-        Template: 'check-in',
+        Template: templateToGrant,
       },
       templateDoc.get('attachment'),
     ).toObject(),
   };
 
   batch.set(activityRef, activityData);
-
   batch.set(activityData.addendumDocRef, {
     date,
     month,
@@ -236,27 +175,15 @@ const grantSubscription = async conn => {
     activityData,
     user: phoneNumber,
     timestamp: Date.now(),
-    userDeviceTimestamp: timestamp,
     userDisplayName: displayName,
     share: allAssignees,
     action: httpsActions.create,
-    location: getGeopointObject(geopoint),
     isSupportRequest: false,
     activityId: activityRef.id,
     activityName: activityData.activityName,
-    geopointAccuracy: geopoint.accuracy || null,
-    provider: geopoint.provider || null,
   });
 
   await batch.commit();
-
-  return sendResponse(conn, code.created, 'Check-in subscription created');
 };
 
-module.exports = async conn => {
-  try {
-    return grantSubscription(conn);
-  } catch (error) {
-    return handleError(conn, error);
-  }
-};
+module.exports = grantSubscription;

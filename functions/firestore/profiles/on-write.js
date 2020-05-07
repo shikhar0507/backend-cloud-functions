@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -32,28 +32,34 @@ const {
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const env = require('../../admin/env');
+const rpn = require('request-promise-native');
+
+const profileIntegrationMS = async change => {
+  try {
+    const integrationData = { phoneNumber: change.before.id };
+    if (change.after.data()) {
+      integrationData.new = change.after.data();
+    }
+    const uri = `https://us-central1-growthfilems.cloudfunctions.net/api/profile`;
+    await rpn(uri, {
+      method: 'PUT',
+      json: true,
+      headers: {
+        Authorization: `Bearer ${env.growthfileMsToken}`,
+      },
+      body: integrationData,
+    });
+  } catch (error) {
+    console.error(error);
+  }
+};
 
 const manageOldCheckins = async change => {
-  const oldFromValue = change.before.get('lastQueryFrom');
-  const newFromValue = change.after.get('lastQueryFrom');
-
-  /**
-   * Both old and the new values should be available
-   * None should be 0.
-   * The newer value should be greater than the older
-   * value.
-   */
-  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
-    return;
-  }
-
   const batch = db.batch();
-
   (
     await change.after.ref
       .collection(subcollectionNames.ACTIVITIES)
       .where('template', '==', 'check-in')
-      .where('timestamp', '<', oldFromValue)
       .limit(500)
       .get()
   ).forEach(doc => batch.delete(doc.ref));
@@ -64,27 +70,36 @@ const manageOldCheckins = async change => {
 const manageAddendum = async change => {
   const oldFromValue = change.before.get('lastQueryFrom');
   const newFromValue = change.after.get('lastQueryFrom');
-  /**
-   * Both old and the new values should be available
-   * None should be 0.
-   * The newer value should be greater than the older
-   * value.
-   */
-  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
-    return;
-  }
 
   const batch = db.batch();
 
-  (
-    await rootCollections.updates
-      .doc(change.after.get('uid'))
-      .collection(subcollectionNames.ADDENDUM)
-      .where('timestamp', '<', oldFromValue)
-      .orderBy('timestamp')
-      .limit(500)
-      .get()
-  ).forEach(doc => batch.delete(doc.ref));
+  /**
+   * If user has reinstalled, clear their updates collection addendums
+   */
+  if (newFromValue === 0 && oldFromValue !== 0) {
+    (
+      await rootCollections.updates
+        .doc(change.after.get('uid'))
+        .collection(subcollectionNames.ADDENDUM)
+        .orderBy('timestamp')
+        .limit(500)
+        .get()
+    ).forEach(doc => batch.delete(doc.ref));
+  }
+  /**
+   * Else clear their updates collection from last timestamp (before read request)
+   */
+  if (newFromValue !== 0 && newFromValue > oldFromValue) {
+    (
+      await rootCollections.updates
+        .doc(change.after.get('uid'))
+        .collection(subcollectionNames.ADDENDUM)
+        .where('timestamp', '<', oldFromValue)
+        .orderBy('timestamp')
+        .limit(500)
+        .get()
+    ).forEach(doc => batch.delete(doc.ref));
+  }
 
   return batch.commit();
 };
@@ -223,25 +238,17 @@ const handleSignUpAndInstall = async options => {
 };
 
 const handleCancelledSubscriptions = async change => {
-  const oldFromValue = change.before.get('lastQueryFrom');
-  const newFromValue = change.after.get('lastQueryFrom');
-
-  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
-    return;
-  }
-
+  /**
+   * Delete cancelled subscriptions
+   */
   const profileSubscriptions = await change.after.ref
     .collection(subcollectionNames.SUBSCRIPTIONS)
-    .where('timestamp', '<', oldFromValue)
+    .where('status', '==', 'CANCELLED')
     .get();
 
   const batch = db.batch();
 
   profileSubscriptions.forEach(doc => {
-    if (doc.get('status') !== 'CANCELLED') {
-      return;
-    }
-
     batch.delete(doc.ref);
   });
 
@@ -335,6 +342,9 @@ module.exports = async change => {
     await manageAddendum(change);
     await manageOldCheckins(change);
     await handleCancelledSubscriptions(change);
+
+    // send profile changes to growthfilems project
+    await profileIntegrationMS(change);
 
     if (!toSendSMS || !office) {
       return;

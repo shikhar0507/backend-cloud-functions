@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -34,6 +34,7 @@ const {
   msEndpoints,
   msRequestTypes,
 } = require('../../admin/constants');
+
 const {
   slugify,
   getAuth,
@@ -44,6 +45,7 @@ const {
   getDefaultAttendanceObject,
   getDistanceFromDistanceMatrix,
   growthfileMsRequester,
+  enumerateDaysBetweenDates,
 } = require('../../admin/utils');
 const { toMapsUrl, getStatusForDay } = require('../recipients/report-utils');
 const {
@@ -96,11 +98,7 @@ const handleSupervisorUpdate = async locals => {
   const activityEmployeeDataNew = change.after.data();
 
   // check for updated supervisors, delete old and new to all the employee's subscription activities
-  const supervisors = [
-    'First Supervisor',
-    'Second Supervisor',
-    'Third Supervisor',
-  ];
+  const supervisors = ['First Supervisor'];
   const toDelete = [];
   const toAdd = [];
   const activityEmployeeOldAttachment = change.before.data().attachment;
@@ -195,10 +193,20 @@ const getProfileActivityObject = ({
   customerObject,
 }) => {
   const { id: activityId } = activityDoc;
+  const dates = [];
+  const schedules = activityDoc.get('schedule');
+  if (schedules && Array.isArray(schedules) && schedules.length > 0) {
+    schedules.forEach(({ startTime, endTime }) => {
+      dates.push(
+        ...enumerateDaysBetweenDates(startTime, endTime, dateFormats.DATE),
+      );
+    });
+  }
   const intermediate = Object.assign({}, activityDoc.data(), {
     activityId,
     addendumDocRef: null,
     timestamp: Date.now(),
+    dates: dates,
     assignees: assigneePhoneNumbersArray.map(phoneNumber => {
       const { displayName = '', photoURL = '' } =
         assigneesMap.get(phoneNumber) || {};
@@ -686,9 +694,9 @@ const handleSubscription = async locals => {
   });
 
   const subscriptionDocData = {
+    template: subscribedTemplate,
     timestamp: Date.now(),
     include: Array.from(new Set(include)),
-    template: templateDoc.get('name'),
     office: locals.change.after.get('office'),
     status: locals.change.after.get('status'),
   };
@@ -704,8 +712,15 @@ const handleSubscription = async locals => {
       subscriptionDocData.roleDoc = getActivityObjectWithMetadata(roleDoc);
     }
   }
-
-  batch.set(subscriptionDocRef, subscriptionDocData, { merge: true });
+  const subscriptionData = locals.change.after.data();
+  //batch.set(subscriptionDocRef, subscriptionDocData, { merge: true });
+  batch.set(
+    subscriptionDocRef,
+    Object.assign({}, subscriptionData, {
+      include: Array.from(new Set(include)),
+    }),
+    { merge: true },
+  );
 
   const newSubscriberAuth = await getAuth(newSubscriber);
 
@@ -721,6 +736,8 @@ const handleSubscription = async locals => {
         attachment: templateDoc.get('attachment'),
         venue: templateDoc.get('venue'),
         schedule: templateDoc.get('schedule'),
+        template: subscribedTemplate,
+        report: templateDoc.get('report') || '',
       }),
       { merge: true },
     );
@@ -1272,6 +1289,7 @@ const createNewProfiles = async ({ newPhoneNumbersSet, smsContext }) => {
   const profilePromises = [];
 
   const promiseCreator = phoneNumber => {
+    if (!phoneNumber) {return;}
     profilePromises.push(rootCollections.profiles.doc(phoneNumber).get());
   };
 
@@ -1600,7 +1618,7 @@ const getCommentObject = ({ addendumDoc, activityId, comment }) => ({
   _type: addendumTypes.COMMENT,
   isComment: isComment(addendumDoc.get('action')),
   timestamp: addendumDoc.get('userDeviceTimestamp') || Date.now(),
-  location: addendumDoc.get('location'),
+  location: addendumDoc.get('location') || '',
   user: addendumDoc.get('user'),
 });
 
@@ -2702,10 +2720,7 @@ const reimburseClaim = async locals => {
       _type: addendumTypes.REIMBURSEMENT,
       amount: locals.change.after.get('attachment.Amount.value'),
       id: `${date}${month}${year}${reimbursementRef.id}`,
-      key: momentNow
-        .clone()
-        .startOf('day')
-        .valueOf(),
+      key: momentNow.clone().startOf('day').valueOf(),
       currency: 'INR',
       reimbursementType: template,
       reimbursementName:
@@ -2817,10 +2832,7 @@ const reimburseDailyAllowance = async locals => {
       .clone()
       .hours(startHours)
       .minutes(startMinutes);
-    const momentEnd = momentNow
-      .clone()
-      .hours(endHours)
-      .minutes(endMinutes);
+    const momentEnd = momentNow.clone().hours(endHours).minutes(endMinutes);
     const includeStartAndEndTime = '[]';
     const isInRange = momentNow.isBetween(
       momentStart,
@@ -2919,10 +2931,7 @@ const reimburseDailyAllowance = async locals => {
           timestamp: Date.now(),
           amount: daActivity.get('attachment.Amount.value'),
           _type: addendumTypes.REIMBURSEMENT,
-          key: momentNow
-            .clone()
-            .startOf('day')
-            .valueOf(),
+          key: momentNow.clone().startOf('day').valueOf(),
           id: `${date}${month}${year}${ref.id}`,
           reimbursementType: daActivity.get('template'),
           reimbursementName: daActivity.get('attachment.Name.value'),
@@ -3245,10 +3254,7 @@ const reimburseKmAllowance = async locals => {
         amount: amountEarnedInString,
         _type: addendumTypes.REIMBURSEMENT,
         id: `${date}${month}${year}${firstReimbursementRef.id}`,
-        key: momentNow
-          .clone()
-          .startOf('day')
-          .valueOf(),
+        key: momentNow.clone().startOf('day').valueOf(),
         reimbursementName: null,
         details: {
           rate: kmRate,
@@ -3272,10 +3278,7 @@ const reimburseKmAllowance = async locals => {
         _type: addendumTypes.REIMBURSEMENT,
         amount: amountEarnedInString,
         id: `${date}${month}${year}${secondReimbursementRef.id}`,
-        key: momentNow
-          .clone()
-          .startOf('day')
-          .valueOf(),
+        key: momentNow.clone().startOf('day').valueOf(),
         reimbursementName: null,
         intermediate: true,
         details: {
@@ -3471,9 +3474,7 @@ const getLateStatus = ({ firstCheckInTimestamp, dailyStartTime, timezone }) => {
 
   const [startHours, startMinutes] = dailyStartTime.split(':');
   const momentNow = momentTz(firstCheckInTimestamp).tz(timezone);
-  const momentStartTime = momentTz()
-    .hour(startHours)
-    .minutes(startMinutes);
+  const momentStartTime = momentTz().hour(startHours).minutes(startMinutes);
 
   return momentNow.diff(momentStartTime, 'minutes', true) > 15;
 };
@@ -3582,19 +3583,12 @@ const newBackfill = async locals => {
     }
 
     const max = Math.max(
-      momentPrevMonth
-        .clone()
-        .startOf('month')
-        .valueOf(),
+      momentPrevMonth.clone().startOf('month').valueOf(),
       locals.roleObject.createTime,
-      momentTz(lastTimestamp)
-        .tz(timezone)
-        .valueOf(),
+      momentTz(lastTimestamp).tz(timezone).valueOf(),
     );
 
-    return momentTz(max)
-      .tz(timezone)
-      .startOf('date');
+    return momentTz(max).tz(timezone).startOf('date');
   };
 
   const leavePromises = [];
@@ -3696,9 +3690,7 @@ const getWeeklyOffDatesInMonth = ({
   attendanceYear,
 }) => {
   const result = [];
-  const momentInstance = momentTz()
-    .month(attendanceMonth)
-    .year(attendanceYear);
+  const momentInstance = momentTz().month(attendanceMonth).year(attendanceYear);
   const monthStart = momentInstance.clone().startOf('month');
   const monthEnd = monthStart.clone().endOf('month');
   const iterator = monthStart.clone();
@@ -4144,10 +4136,7 @@ const handleWorkday = async locals => {
       timestamp: Date.now(),
       _type: addendumTypes.ATTENDANCE,
       id: `${todaysDate}${month}${year}${officeId}`,
-      key: momentNow
-        .clone()
-        .startOf('date')
-        .valueOf(),
+      key: momentNow.clone().startOf('date').valueOf(),
     }),
     { merge: true },
   );
@@ -4353,11 +4342,7 @@ const attendanceHandler = async locals => {
           month: momentStartTime.month(),
           year: momentStartTime.year(),
           id: `${date}${momentStartTime.month()}${momentStartTime.year()}${officeId}`,
-          key: momentStartTime
-            .clone()
-            .date(date)
-            .startOf('day')
-            .valueOf(),
+          key: momentStartTime.clone().date(date).startOf('day').valueOf(),
         }),
         { merge: true },
       );
@@ -4524,7 +4509,11 @@ const templateHandler = async locals => {
   }
 
   if (template === 'subscription') {
-    await handleSubscription(locals);
+    try {
+      await handleSubscription(locals);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   if (template === 'admin') {
@@ -4678,6 +4667,7 @@ const handleProfile = async change => {
     // Check-ins are sent to users via `Updates/{uid}/Addendum/` collection
     if (template !== 'check-in') {
       // in profile
+      if (!phoneNumber) {return;}
       batch.set(
         rootCollections.profiles
           .doc(phoneNumber)
@@ -4768,7 +4758,7 @@ const activityOnWrite = async change => {
   await handleAddendum(locals);
 
   await templateHandler(locals);
-  
+
   return handleComments(locals.addendumDoc, locals);
 };
 

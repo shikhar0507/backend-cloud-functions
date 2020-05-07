@@ -166,10 +166,7 @@ module.exports = async conn => {
   const { phoneNumber, uid } = conn.requester;
 
   const [timerDoc] = (
-    await rootCollections.timers
-      .orderBy('timestamp', 'desc')
-      .limit(1)
-      .get()
+    await rootCollections.timers.orderBy('timestamp', 'desc').limit(1).get()
   ).docs;
 
   const { backblazeAuthorizationToken, apiUrl } = timerDoc.data();

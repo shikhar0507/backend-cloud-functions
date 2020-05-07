@@ -98,9 +98,7 @@ module.exports = async change => {
     return;
   }
 
-  const todaysPlus1DayEnd = momentTz()
-    .add(1, 'day')
-    .endOf('day');
+  const todaysPlus1DayEnd = momentTz().add(1, 'day').endOf('day');
 
   if (momentTz(timestamp).isAfter(todaysPlus1DayEnd) || include.length === 0) {
     console.log('is after +1 day');
@@ -116,9 +114,7 @@ module.exports = async change => {
     }
 
     const timezone = officeDoc.get('attachment.Timezone.value');
-    const fmtDate = momentTz(timestamp)
-      .tz(timezone)
-      .format(dateFormats.DATE);
+    const fmtDate = momentTz(timestamp).tz(timezone).format(dateFormats.DATE);
     const authPromises = [];
     const locals = {
       change,

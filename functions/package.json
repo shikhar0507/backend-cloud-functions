@@ -8,7 +8,9 @@
     "shell": "firebase functions:shell",
     "lint": "./node_modules/.bin/eslint .",
     "serve": "firebase serve --only functions",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "prettier": "node_modules/.bin/prettier --write .",
+    "doctor": "npm run lint && npm run prettier"
   },
   "author": {
     "name": "Utkarsh Bhatt",
@@ -45,12 +47,12 @@
     "currency.js": "^1.2.2",
     "dinero.js": "^1.6.0",
     "facebook-nodejs-business-sdk": "^6.0.0",
-    "firebase-admin": "^8.9.2",
-    "firebase-functions": "^3.1.0",
+    "firebase-admin": "^8.11.0",
+    "firebase-functions": "^3.6.1",
     "google-auth-library": "^4.2.5",
     "google-libphonenumber": "^3.2.5",
     "googleapis": "^47.0.0",
-    "handlebars": "^4.7.2",
+    "handlebars": "^4.7.6",
     "moment": "^2.24.0",
     "moment-timezone": "^0.5.28",
     "mozjpeg": "^6.0.1",
@@ -70,10 +72,11 @@
     "eslint-plugin-import": "^2.20.0",
     "eslint-plugin-jsdoc": "^21.0.0",
     "firebase-functions-test": "^0.1.7",
-    "husky": "^4.2.3",
-    "mocha": "^6.2.0",
-    "prettier": "^1.19.1",
-    "sinon": "^8.1.1"
+    "husky": "^4.2.5",
+    "mocha": "^7.1.2",
+    "prettier": "^2.0.5",
+    "pretty-quick": "^2.0.1",
+    "sinon": "^9.0.2"
   },
   "prettier": {
     "arrowParens": "avoid",
@@ -98,5 +101,10 @@
       }
     ]
   },
-  "private": true
+  "private": true,
+  "husky": {
+    "hooks": {
+      "pre-commit": "pretty-quick --staged"
+    }
+  }
 }

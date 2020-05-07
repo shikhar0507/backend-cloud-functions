@@ -569,10 +569,7 @@ const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
 
 const handleSitemap = async locals => {
   const path = 'sitemap';
-  const sitemapObject = await admin
-    .database()
-    .ref(path)
-    .once('value');
+  const sitemapObject = await admin.database().ref(path).once('value');
   const sitemap = sitemapObject.val() || {};
   const office = locals.change.after.get('office');
   const slug = slugify(office);
@@ -583,17 +580,11 @@ const handleSitemap = async locals => {
     createTime: locals.change.after.createTime.toDate().toJSON(),
   };
 
-  return admin
-    .database()
-    .ref(path)
-    .set(sitemap);
+  return admin.database().ref(path).set(sitemap);
 };
 
 const getVid = async () => {
-  const vAccountId = crypto
-    .randomBytes(16)
-    .toString('hex')
-    .substring(0, 9);
+  const vAccountId = crypto.randomBytes(16).toString('hex').substring(0, 9);
 
   const existsAlready =
     (

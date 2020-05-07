@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -351,15 +351,13 @@ const filterAttachment = ({
   templateAttachment,
   template,
   office,
+  dbReadsII,
 }) => {
   const messageObject = {
     isValid: true,
     message: null,
     nameChecks: [],
     phoneNumbersSet: new Set(),
-    querySnapshotShouldExist: [],
-    querySnapshotShouldNotExist: [],
-    profileDocShouldExist: [],
     hasBase64Field: false,
   };
 
@@ -480,50 +478,6 @@ const filterAttachment = ({
       break;
     }
 
-    if (template === 'subscription') {
-      /** Subscription to the office is `forbidden` */
-      if (bodyAttachment.Template.value === 'office') {
-        messageObject.isValid = false;
-        messageObject.message = `Cannot subscribe to office`;
-        break;
-      }
-
-      if (!isNonEmptyString(value)) {
-        messageObject.isValid = false;
-        messageObject.message = `${field} should have an alpha-numeric value`;
-        break;
-      }
-
-      if (type === 'phoneNumber' && !isE164PhoneNumber(value)) {
-        messageObject.isValid = false;
-        messageObject.message = `${field} should be a valid phone number`;
-        break;
-      }
-
-      if (field === 'Template') {
-        messageObject.querySnapshotShouldExist.push(
-          rootCollections.activityTemplates
-            .where('name', '==', value)
-            .limit(1)
-            .get(),
-        );
-      }
-    }
-
-    if (template === 'admin') {
-      if (!isE164PhoneNumber(bodyAttachment['Phone Number'].value)) {
-        messageObject.isValid = false;
-        messageObject.message = `${field} should be a valid phone number`;
-        break;
-      }
-
-      messageObject.profileDocShouldExist.push(
-        rootCollections.profiles
-          .doc(bodyAttachment['Phone Number'].value)
-          .get(),
-      );
-    }
-
     /**
      * For all the cases when the type is not among the `validTypes`
      * the `Offices/(officeId)/Activities` will be queried for the doc
@@ -537,20 +491,14 @@ const filterAttachment = ({
       });
 
       if (templatesWithNumber.has(type)) {
-        messageObject.querySnapshotShouldExist.push(
-          rootCollections.activities
-            .where('attachment.Number.value', '==', value)
-            .where('office', '==', office)
-            .limit(1)
-            .get(),
-        );
+        // here , uniqueness for number was there, deprecated
         // Won't be querying an array directly.
       } else if (!Array.isArray(value)) {
-        messageObject.querySnapshotShouldExist.push(
+        dbReadsII.shouldExist.push(
           rootCollections.activities
             .where('attachment.Name.value', '==', value)
-            .where('office', '==', office)
             .where('template', '==', type)
+            .where('office', '==', office)
             .limit(1)
             .get(),
         );
@@ -572,15 +520,6 @@ const filterAttachment = ({
           ` 'office' field in the request body should be the same`;
         break;
       }
-
-      messageObject.querySnapshotShouldNotExist.push(
-        rootCollections.activities
-          .where('attachment.Name.value', '==', value)
-          .where('template', '==', template)
-          /** Docs exist uniquely based on `Name`, and `template`. */
-          .limit(1)
-          .get(),
-      );
     }
 
     // Number and Name can't be left blank
@@ -588,17 +527,10 @@ const filterAttachment = ({
       if (!value) {
         messageObject.isValid = false;
         messageObject.message = `Number cannot be empty`;
-
         break;
       }
 
-      messageObject.querySnapshotShouldNotExist.push(
-        rootCollections.activities
-          .where('attachment.Number.value', '==', value)
-          /** Docs exist uniquely based on `Name`, and `template`. */
-          .limit(1)
-          .get(),
-      );
+      // not bieng used
     }
 
     if (type === 'phoneNumber' && value !== '') {
@@ -1360,6 +1292,227 @@ const attendanceConflictHandler = async ({ schedule, phoneNumber, office }) => {
   };
 };
 
+/**
+
+ * Starts the checkLimit procedure
+ * @param locals {{ activityId:any, dbReadsII: {shouldExist: []}, officeDoc: *, conn: *, method: *, templateDoc: *, subscriptionDoc: *, profileDoc: *, mainActivityData: *}}
+ * @param sendResponse
+ * @param code
+ */
+const checkLimitHelper = ({ locals, sendResponse, code }) => {
+  const { template } = locals.mainActivityData;
+  if (template === 'leave') {
+    const startMoment = momentTz(locals.mainActivityData.schedule[0].endTime);
+    const endMoment = momentTz(locals.mainActivityData.schedule[0].endTime);
+    locals.dbReadsII.limitDocument = rootCollections.activities
+      .where('office', '==', locals.officeDoc.get('office'))
+      .where('template', '==', 'leave-type')
+      .where(
+        'attachment.Name.value',
+        '==',
+        locals.mainActivityData.attachment['Leave Type'].value,
+      )
+      .limit(1)
+      .get();
+    locals.dbReadsII.limitQuery = locals.officeDoc.ref
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('creator', '==', locals.conn.requester.phoneNumber)
+      .where('template', '==', 'leave')
+      .where(
+        'attachment.Leave Type.value',
+        '==',
+        locals.mainActivityData.attachment['Leave Type'].value,
+      )
+      .where('startYear', '==', startMoment.year())
+      .where('endYear', '==', endMoment.year())
+      /** Cancelled leaves don't count to the full number */
+      .where('status', '==', 'CONFIRMED')
+      .get();
+  }
+  if (template === 'claim') {
+    const claimType = locals.mainActivityData.attachment['Claim Type'].value;
+    const amount = locals.mainActivityData.attachment.Amount.value;
+    if (!claimType) {
+      return true;
+    }
+    if (Number(amount || 0) < 1) {
+      sendResponse(
+        locals.conn,
+        code.badRequest,
+        `Amount should be a positive number`,
+      );
+      return false;
+    }
+    const { officeId, phoneNumber } = {
+      officeId: locals.officeDoc.id,
+      phoneNumber: locals.conn.requester.phoneNumber,
+    };
+    const baseQuery = rootCollections.activities.where(
+      'officeId',
+      '==',
+      officeId,
+    );
+
+    locals.dbReadsII.claimChecks = [
+      baseQuery
+        .where('template', '==', 'claim')
+        .where('creator.phoneNumber', '==', phoneNumber)
+        .where('attachment.Claim Type.value', '==', claimType)
+        .get(),
+      baseQuery
+        .where('template', '==', 'claim-type')
+        .where('attachment.Name.value', '==', claimType)
+        .limit(1)
+        .get(),
+    ];
+  }
+  return true;
+};
+
+/**
+ *
+ * @param attachment
+ * @param dateConflict
+ * @param dates
+ * @param scheduleConflict
+ * @param venue
+ * @param schedule
+ * @param report
+ * @param timestamp
+ * @param office
+ * @param addendumDocRef
+ * @param template
+ * @param status
+ * @param canEditRule
+ * @param officeId
+ * @param activityName
+ * @param creator {{displayName:*,phoneNumber:*,photoURL:*}}
+ * @param isCancelled
+ * @param hidden
+ * @param adjustedGeopoints
+ * @param relevantTime
+ * @param scheduleDates
+ * @param relevantTimeAndVenue
+ * @param createTimestamp
+ * @returns {{template: *, adjustedGeopoints: *, venue: *, isCancelled: *, creator, hidden: *, addendumDocRef: *, activityName: *, relevantTimeAndVenue: *, dates: *, office: *, createTimestamp: *, scheduleConflict: *, schedule: *, relevantTime: *, scheduleDates: *, attachment: *, canEditRule: *, officeId: *, report: *, dateConflict: *, timestamp: *, status: *}}
+ */
+const activityCreator = (
+  {
+    attachment,
+    dateConflict,
+    dates,
+    venue,
+    schedule,
+    report,
+    timestamp,
+    office,
+    addendumDocRef,
+    template,
+    status,
+    canEditRule,
+    officeId,
+    activityName,
+    creator = {
+      phoneNumber: '',
+      displayName: '',
+      photoURL: '',
+    },
+  },
+  {
+    isCancelled,
+    adjustedGeopoints,
+    relevantTime,
+    scheduleDates,
+    relevantTimeAndVenue,
+    createTimestamp,
+  },
+) => {
+  // this ensures consistency in fields
+  const activity = {
+    attachment,
+    dateConflict,
+    dates,
+    venue,
+    schedule,
+    report,
+    timestamp,
+    office,
+    addendumDocRef,
+    template,
+    status,
+    canEditRule,
+    officeId,
+    activityName,
+    creator,
+  };
+  const nonEssential = {};
+  const optionalFields = {
+    isCancelled,
+    adjustedGeopoints,
+    relevantTime,
+    scheduleDates,
+    relevantTimeAndVenue,
+    createTimestamp,
+  };
+  Object.keys(optionalFields).forEach(activityField => {
+    if (
+      optionalFields.hasOwnProperty(activityField) &&
+      optionalFields[activityField] !== null
+    ) {
+      nonEssential[activityField] = optionalFields[activityField];
+    }
+  });
+  const finalActivityObject = Object.assign({}, activity, nonEssential);
+  return finalActivityObject;
+};
+
+
+const sanitizer = (obj) => {
+  const t = obj;
+  for (const v in t) {
+    if (typeof t[v] == "object")
+      sanitizer(t[v]);
+    else if (t[v] === undefined || t[v] ===null)
+      t[v] = '';
+  }
+  return t;
+};
+
+const addendumCreator = (
+  { ms_timestamp, ms_month, ms_date, ms_year, ms_action },
+  {
+    ms_displayName,ms_phoneNumber,ms_email,ms_displayUrl,ms_isSupportRequest,ms_potentialSameUsers
+  },
+  ms_roleDoc,
+  {
+    ms_template,ms_name,ms_lat,ms_long,ms_url,ms_route,ms_locality,ms_adminstrative_area_level_2,ms_adminstrative_area_level_1,ms_country,ms_postalCode
+  },
+  ms_distanceFromPrevious = 0.0,
+  ms_distanceAccurate = '',
+  ms_activity,
+) => {
+  const addendumFieldsSet1 = {
+    ms_timestamp, ms_month, ms_date, ms_year, ms_action
+  };
+  const addendumFieldsSet2 = {
+    ms_displayName,ms_phoneNumber,ms_email,ms_displayUrl,ms_isSupportRequest,ms_potentialSameUsers
+  };
+  const addendumFieldsSet3 = {
+    ms_template,ms_name,ms_lat,ms_long,ms_url,ms_route,ms_locality,ms_adminstrative_area_level_2,ms_adminstrative_area_level_1,ms_country,ms_postalCode
+  };
+  const addendum = Object.assign(
+    {},
+    addendumFieldsSet1,
+    { ms_user: addendumFieldsSet2},
+    { ms_roleDoc },
+    { ms_location: addendumFieldsSet3 },
+    { ms_distanceAccurate, ms_distanceFromPrevious },
+    { ms_activity },
+  );
+
+  return sanitizer(addendum);
+};
+
 module.exports = {
   attendanceConflictHandler,
   activityName,
@@ -1376,4 +1529,7 @@ module.exports = {
   createAutoSubscription,
   checkActivityAndAssignee,
   getPhoneNumbersFromAttachment,
+  checkLimitHelper,
+  activityCreator,
+  addendumCreator,
 };

@@ -85,7 +85,7 @@ const getPaymentObjectForUpdates = ({ payment, id }) => {
     cycleEnd,
     ifsc,
     account, // last 4 digits
-    status,
+    // status,
     paymentType,
     utr = null,
   } = payment;
@@ -216,7 +216,12 @@ const handlePayment = async requestBody => {
 
 const handleDeposit = async requestBody => {
   const batch = db.batch();
-  const { vAccountId, signature, event, amount: amountInWebhook } = requestBody;
+  const {
+    vAccountId,
+    signature,
+    // event,
+    amount: amountInWebhook,
+  } = requestBody;
   const {
     docs: [batchDoc],
   } = await rootCollections.batches

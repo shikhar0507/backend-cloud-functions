@@ -238,6 +238,15 @@ module.exports = async conn => {
     typeof conn.req.query.registrationToken === 'string'
   ) {
     updatesDocData.registrationToken = conn.req.query.registrationToken;
+    batch.set(
+      rootCollections.profiles.doc(conn.requester.phoneNumber),
+      {
+        registrationToken: conn.req.query.registrationToken
+      },
+      {
+        merge: true,
+      },
+    );
   }
 
   if (updatesDocData.removeFromOffice) {

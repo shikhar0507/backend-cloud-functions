@@ -49,15 +49,8 @@ module.exports = async ({ name: filePath, bucket }) => {
       },
       [buffer],
     ] = await Promise.all([
-      rootCollections.timers
-        .orderBy('timestamp', 'desc')
-        .limit(1)
-        .get(),
-      admin
-        .storage()
-        .bucket(bucket)
-        .file(filePath)
-        .download(),
+      rootCollections.timers.orderBy('timestamp', 'desc').limit(1).get(),
+      admin.storage().bucket(bucket).file(filePath).download(),
     ]);
 
     const json = JSON.parse(buffer.toString());
@@ -165,11 +158,7 @@ module.exports = async ({ name: filePath, bucket }) => {
         /** Delete the file since the activity creation is complete */
         return Promise.all([
           batch.commit(),
-          admin
-            .storage()
-            .bucket(bucket)
-            .file(filePath)
-            .delete(),
+          admin.storage().bucket(bucket).file(filePath).delete(),
         ]);
       });
   } catch (error) {

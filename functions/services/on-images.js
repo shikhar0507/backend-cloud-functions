@@ -98,10 +98,7 @@ module.exports = conn => {
     originalFilePath,
   ])
     .then(() => {
-      return rootCollections.timers
-        .orderBy('timestamp', 'desc')
-        .limit(1)
-        .get();
+      return rootCollections.timers.orderBy('timestamp', 'desc').limit(1).get();
     })
     .then(timerDocQuery => {
       const timerDoc = timerDocQuery.docs[0];

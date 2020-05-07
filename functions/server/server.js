@@ -135,73 +135,80 @@ const getProfile = conn => {
     return handleResource(conn);
   }
 
-  return rootCollections.profiles
-    .doc(conn.requester.phoneNumber)
-    .get()
-    .then(profileDoc => {
-      conn.requester.profileDoc = profileDoc;
-      conn.requester.lastQueryFrom = profileDoc.get('lastQueryFrom');
-      conn.requester.employeeOf = profileDoc.get('employeeOf') || {};
-
-      /**
-       * In `/api`, if uid is undefined in /Profiles/{phoneNumber} && authCreateTime and lastSignInTime is same,
-       *   run `authOnCreate` logic again.
-       */
-      if (
-        profileDoc.get('uid') &&
-        profileDoc.get('uid') !== conn.requester.uid
-      ) {
-        console.log({
-          authCreationTime: AUTH_CREATION_TIMESTAMP,
-          now: Date.now(),
-          msg: `The uid and phone number of the requester does not match.`,
-          phoneNumber: profileDoc.id,
-          profileUid: profileDoc.get('uid'),
-          authUid: conn.requester.uid,
-          gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
-          diff: Date.now() - AUTH_CREATION_TIMESTAMP,
-        });
+  return (
+    rootCollections.profiles
+      .doc(conn.requester.phoneNumber)
+      .get()
+      // @ts-ignore
+      .then(profileDoc => {
+        conn.requester.profileDoc = profileDoc;
+        conn.requester.lastQueryFrom = profileDoc.get('lastQueryFrom');
+        conn.requester.employeeOf = profileDoc.get('employeeOf') || {};
 
         /**
-         * The user probably managed to change their phone number by something
-         * other than out provided endpoint for updating the `auth`.
-         * Disabling their account because this is not allowed.
+         * In `/api`, if uid is undefined in /Profiles/{phoneNumber} && authCreateTime and lastSignInTime is same,
+         *   run `authOnCreate` logic again.
          */
-        logger.info(
-          `[api][server.js][getProfile][then profileDoc][userDisabled] ${beautifier(
-            {
-              authCreationTime: AUTH_CREATION_TIMESTAMP,
-              now: Date.now(),
-              msg: `The uid and phone number of the requester does not match.`,
-              phoneNumber: profileDoc.id,
-              profileUid: profileDoc.get('uid'),
-              authUid: conn.requester.uid,
-              gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
-              diff: Date.now() - AUTH_CREATION_TIMESTAMP,
-            },
-          )}`,
-        );
+        if (
+          profileDoc.get('uid') &&
+          profileDoc.get('uid') !== conn.requester.uid
+        ) {
+          console.log({
+            authCreationTime: AUTH_CREATION_TIMESTAMP,
+            now: Date.now(),
+            msg: `The uid and phone number of the requester does not match.`,
+            phoneNumber: profileDoc.id,
+            profileUid: profileDoc.get('uid'),
+            authUid: conn.requester.uid,
+            gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
+            diff: Date.now() - AUTH_CREATION_TIMESTAMP,
+          });
 
-        return disableAccount(
-          conn,
-          `The uid and phone number of the requester does not match.`,
-        );
-      }
+          /**
+           * The user probably managed to change their phone number by something
+           * other than out provided endpoint for updating the `auth`.
+           * Disabling their account because this is not allowed.
+           */
+          logger.info(
+            `[api][server.js][getProfile][then profileDoc][userDisabled] ${beautifier(
+              {
+                authCreationTime: AUTH_CREATION_TIMESTAMP,
+                now: Date.now(),
+                msg: `The uid and phone number of the requester does not match.`,
+                phoneNumber: profileDoc.id,
+                profileUid: profileDoc.get('uid'),
+                authUid: conn.requester.uid,
+                gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
+                diff: Date.now() - AUTH_CREATION_TIMESTAMP,
+              },
+            )}`,
+          );
 
-      /** AuthOnCreate probably failed. This is the fallback */
-      if (!profileDoc.get('uid')) {
-        batch.set(profileDoc.ref, { uid: conn.requester.uid }, { merge: true });
+          return disableAccount(
+            conn,
+            `The uid and phone number of the requester does not match.`,
+          );
+        }
 
-        batch.set(
-          rootCollections.updates.doc(conn.requester.uid),
-          { phoneNumber: conn.requester.phoneNumber },
-          { merge: true },
-        );
-      }
+        /** AuthOnCreate probably failed. This is the fallback */
+        if (!profileDoc.get('uid')) {
+          batch.set(
+            profileDoc.ref,
+            { uid: conn.requester.uid },
+            { merge: true },
+          );
 
-      return Promise.all([batch.commit(), handleResource(conn)]);
-    })
-    .catch(error => handleError(conn, error, ''));
+          batch.set(
+            rootCollections.updates.doc(conn.requester.uid),
+            { phoneNumber: conn.requester.phoneNumber },
+            { merge: true },
+          );
+        }
+
+        return Promise.all([batch.commit(), handleResource(conn)]);
+      })
+      .catch(error => handleError(conn, error, ''))
+  );
 };
 
 const getUserAuthFromIdToken = async (conn, decodedIdToken) => {

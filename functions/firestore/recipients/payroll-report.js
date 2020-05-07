@@ -160,13 +160,9 @@ const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone) => {
   }
 
   return (
-    `${momentTz(firstCheckInTimestamp)
-      .tz(timezone)
-      .format(dateFormats.TIME)}` +
+    `${momentTz(firstCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}` +
     `, ` +
-    `${momentTz(lastCheckInTimestamp)
-      .tz(timezone)
-      .format(dateFormats.TIME)}` +
+    `${momentTz(lastCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}` +
     `, ` +
     `${numberOfCheckIns}`
   );
@@ -181,10 +177,7 @@ const getTotalDays = params => {
 
   if (fetchPreviousMonthDocs) {
     return momentYesterday.diff(
-      momentYesterday
-        .clone()
-        .subtract(1, 'month')
-        .date(firstDayOfMonthlyCycle),
+      momentYesterday.clone().subtract(1, 'month').date(firstDayOfMonthlyCycle),
       'days',
     );
   }
@@ -391,21 +384,11 @@ const getHeaderDates = (firstRange, secondRange, momentYesterday) => {
   const momentPrevMonth = momentYesterday.clone().subtract(1, 'month');
 
   firstRange.forEach(date => {
-    result.push(
-      momentPrevMonth
-        .clone()
-        .date(date)
-        .format(dateFormats.DATE),
-    );
+    result.push(momentPrevMonth.clone().date(date).format(dateFormats.DATE));
   });
 
   secondRange.forEach(date => {
-    result.push(
-      momentYesterday
-        .clone()
-        .date(date)
-        .format(dateFormats.DATE),
-    );
+    result.push(momentYesterday.clone().date(date).format(dateFormats.DATE));
   });
 
   return result;
@@ -459,10 +442,7 @@ module.exports = async locals => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
         firstDayOfMonthlyCycle,
-        momentPrevMonth
-          .clone()
-          .endOf('month')
-          .date() + 1,
+        momentPrevMonth.clone().endOf('month').date() + 1,
       );
     }
 
@@ -653,13 +633,10 @@ module.exports = async locals => {
     'Payable',
     'Details',
   ].forEach((value, index) => {
-    payrollSheet
-      .cell(`${alphabetsArray[index]}1`)
-      .value(value)
-      .style({
-        fontColor: 'FFFFF',
-        bold: true,
-      });
+    payrollSheet.cell(`${alphabetsArray[index]}1`).value(value).style({
+      fontColor: 'FFFFF',
+      bold: true,
+    });
   });
 
   // status,
@@ -689,13 +666,10 @@ module.exports = async locals => {
     ...allLeaveTypes,
     ...getHeaderDates(firstRange, secondRange, momentYesterday),
   ].forEach((value, index) => {
-    payrollSummary
-      .cell(`${alphabetsArray[index]}1`)
-      .value(value)
-      .style({
-        fontColor: 'FFFFF',
-        bold: true,
-      });
+    payrollSummary.cell(`${alphabetsArray[index]}1`).value(value).style({
+      fontColor: 'FFFFF',
+      bold: true,
+    });
   });
 
   console.log('allLeaveTypes', allLeaveTypes);

@@ -138,10 +138,7 @@ const reimbursementsReport = async locals => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
         firstDayOfReimbursementsCycle,
-        momentPrevMonth
-          .clone()
-          .endOf('month')
-          .date() + 1,
+        momentPrevMonth.clone().endOf('month').date() + 1,
       );
     }
 

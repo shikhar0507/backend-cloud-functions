@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 GrowthFile
+ * Copyright (c) 2020 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -23,43 +23,20 @@
 
 'use strict';
 
-const { sendResponse } = require('../admin/utils');
-const { code } = require('../admin/responses');
+const grantSubscription = require('./grantSubscription');
 
-module.exports = conn => {
-  if (!conn.requester.customClaims) {
-    sendResponse(
-      code,
-      code.forbidden,
-      'You are unauthorized to perform this operation.',
+const templatesToGrant = {
+  share_link: ['check-in', 'leave', 'attendance regularization', 'call'],
+};
+
+module.exports = function (conn, campaign) {
+  if (templatesToGrant.hasOwnProperty(campaign)) {
+    return Promise.all(
+      templatesToGrant[campaign].map(template =>
+        grantSubscription(conn, template),
+      ),
     );
-
-    return;
+  } else {
+    return false;
   }
-
-  const action = require('url').parse(conn.req.url).path.split('/')[3];
-
-  if (action === 'permissions') {
-    if (conn.req.method !== 'PUT') {
-      sendResponse(
-        conn,
-        code.methodNotAllowed,
-        `${conn.req.method} is not allowed for /${action}` +
-          ' endpoint. Use PUT.',
-      );
-
-      return;
-    }
-
-    const onPermissions = require('./on-permissions');
-    onPermissions(conn);
-
-    return;
-  }
-
-  sendResponse(
-    conn,
-    code.notFound,
-    `No resource found at the path: ${conn.req.url}.`,
-  );
 };

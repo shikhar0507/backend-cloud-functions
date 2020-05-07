@@ -149,10 +149,7 @@ module.exports = async conn => {
       docs: [templateDoc],
     },
   ] = await Promise.all([
-    rootCollections.offices
-      .where('office', '==', office)
-      .limit(1)
-      .get(),
+    rootCollections.offices.where('office', '==', office).limit(1).get(),
     rootCollections.activityTemplates
       .where('name', '==', 'subscription')
       .limit(1)
@@ -224,8 +221,9 @@ module.exports = async conn => {
         },
         templateDoc.get('attachment'),
       ).toObject(),
-      activityName: `${templateDoc.get('name')} ${displayName ||
-        phoneNumber}`.toUpperCase(),
+      activityName: `${templateDoc.get('name')} ${
+        displayName || phoneNumber
+      }`.toUpperCase(),
       canEditRule: templateDoc.get('canEditRule'),
       hidden: templateDoc.get('hidden'),
       schedule: templateDoc.get('schedule').map(name => {

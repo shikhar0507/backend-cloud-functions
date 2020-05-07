@@ -999,8 +999,9 @@ const handleAdmins = async locals => {
 
     if (!phoneNumber) {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Invalid value '${phoneNumber ||
-        'empty'}' for Admin phone number`;
+      locals.inputObjects[index].reason = `Invalid value '${
+        phoneNumber || 'empty'
+      }' for Admin phone number`;
     }
 
     if (adminsToReject.has(phoneNumber)) {
