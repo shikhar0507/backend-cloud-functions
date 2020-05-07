@@ -1,4 +1,3 @@
-
 /**
  * Copyright (c) 2020 GrowthFile
  *
@@ -76,12 +75,14 @@ const addendumFilter = doc => {
   return singleDoc;
 };
 
-const getAssigneeFromDocRef = async (docRef) => {
-  const {docs:assigneeDocuments} = await docRef.collection(subcollectionNames.ASSIGNEES).get();
-  return assigneeDocuments.map(document=>({
-        phoneNumber:document.id,
-        displayName: '',
-        photoURL: '',
+const getAssigneeFromDocRef = async docRef => {
+  const { docs: assigneeDocuments } = await docRef
+    .collection(subcollectionNames.ASSIGNEES)
+    .get();
+  return assigneeDocuments.map(document => ({
+    phoneNumber: document.id,
+    displayName: '',
+    photoURL: '',
   }));
 };
 
@@ -405,7 +406,7 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
   if (activities.length === 0) {
     return;
   }
-  for (let index=0;index<activities.length;index+=1) {
+  for (let index = 0; index < activities.length; index += 1) {
     const activity = activities[index];
     const venue = activity.get('venue');
     if (venue && Array.isArray(venue) && venue.length > 0) {
@@ -417,58 +418,58 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
       }
       if (activity.get('template') === 'product') {
         jsonObject.products.push(
-            Object.assign(
-                {},
-                activity.data(),
-                { activityId: activity.id },
-                {
-                  addendumDocRef: null,
-                  assignees: [],
-                },
-            ),
-        );
-        continue;
-      }
-      jsonObject.activities.push(
           Object.assign(
-              {},
-              activity.data(),
-              { activityId: activity.id },
-              {
-                addendumDocRef: null,
-                assignees: await getAssigneeFromDocRef(activity.ref),
-              },
-          ),
-      );
-      continue;
-    }
-    if (activity.get('template') === 'product') {
-      jsonObject.products.push(
-          Object.assign(
-              {},
-              activity.data(),
-              { activityId: activity.id },
-              {
-                addendumDocRef: null,
-                assignees: [],
-              },
-          ),
-      );
-    }
-    jsonObject.activities.push(
-        Object.assign(
             {},
             activity.data(),
             { activityId: activity.id },
             {
               addendumDocRef: null,
-              assignees: await getAssigneeFromDocRef(activity.ref),
+              assignees: [],
             },
+          ),
+        );
+        continue;
+      }
+      jsonObject.activities.push(
+        Object.assign(
+          {},
+          activity.data(),
+          { activityId: activity.id },
+          {
+            addendumDocRef: null,
+            assignees: await getAssigneeFromDocRef(activity.ref),
+          },
         ),
+      );
+      continue;
+    }
+    if (activity.get('template') === 'product') {
+      jsonObject.products.push(
+        Object.assign(
+          {},
+          activity.data(),
+          { activityId: activity.id },
+          {
+            addendumDocRef: null,
+            assignees: [],
+          },
+        ),
+      );
+    }
+    jsonObject.activities.push(
+      Object.assign(
+        {},
+        activity.data(),
+        { activityId: activity.id },
+        {
+          addendumDocRef: null,
+          assignees: await getAssigneeFromDocRef(activity.ref),
+        },
+      ),
     );
   }
 };
-  
+
 const getOfficesFromSubscriptions = async ({ phoneNumber }) => {
   const offices = new Set();
   (
