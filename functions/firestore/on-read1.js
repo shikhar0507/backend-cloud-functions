@@ -410,36 +410,12 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
     const activity = activities[index];
     const venue = activity.get('venue');
     if (venue && Array.isArray(venue) && venue.length > 0) {
-      jsonObject.locations.push(locationFilter(activity));
-      const venue = activity.get('venue');
-      if (venue && Array.isArray(venue) && venue.length > 0) {
-        jsonObject.locations.push(locationFilter(activity));
-        continue;
-      }
-      if (activity.get('template') === 'product') {
-        jsonObject.products.push(
-          Object.assign(
-            {},
-            activity.data(),
-            { activityId: activity.id },
-            {
-              addendumDocRef: null,
-              assignees: [],
-            },
-          ),
-        );
-        continue;
-      }
-      jsonObject.activities.push(
-        Object.assign(
-          {},
-          activity.data(),
-          { activityId: activity.id },
-          {
-            addendumDocRef: null,
-            assignees: await getAssigneeFromDocRef(activity.ref),
-          },
-        ),
+      jsonObject.locations.push(
+        Object.assign({}, locationFilter(activity), {
+          addendumDocRef: null,
+          assignees: [],
+          activityId: activity.id,
+        }),
       );
       continue;
     }
@@ -455,6 +431,7 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
           },
         ),
       );
+      continue;
     }
     jsonObject.activities.push(
       Object.assign(
@@ -598,7 +575,6 @@ const read = async conn => {
   if (sendLocations) {
     officeList.forEach(office => {
       const officeId = employeeOf[office];
-
       locationPromises.push(
         getActivityQueryByTemplate({ template: 'customer', officeId }),
         getActivityQueryByTemplate({ template: 'branch', officeId }),
