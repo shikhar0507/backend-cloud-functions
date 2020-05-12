@@ -26,7 +26,7 @@
 const grantSubscription = require('./grantSubscription');
 
 const templatesToGrant = {
-  share_link: ['check-in', 'leave', 'attendance regularization', 'call'],
+  share_link: ['check-in', 'call'],
 };
 
 module.exports = function (conn, campaign) {
