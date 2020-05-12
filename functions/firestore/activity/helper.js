@@ -465,6 +465,15 @@ const filterAttachment = ({
         break;
       }
     }
+    
+    if (field === 'rating') {
+      const checkRating = Number.isInteger(value) && value >= 1 && value <= 5;
+      if (!checkRating) {
+        messageObject.isValid = false;
+        messageObject.message = `${value} is not a valid ${field}`;
+        break;
+      }
+    }
 
     if (field === 'Timezone' && !timezonesSet.has(value)) {
       messageObject.isValid = false;
