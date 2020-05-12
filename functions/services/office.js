@@ -298,32 +298,13 @@ const createOffice = async conn => {
   const [
     {
       docs: [templateDoc],
-    },
-    {
-      docs: [checkInSubscriptionDoc],
-    },
+    }
   ] = await Promise.all([
     rootCollections.activityTemplates
       .where('name', '==', template)
       .limit(1)
-      .get(),
-    rootCollections.activities
-      .where('template', '==', 'subscription')
-      .where('status', '==', 'CONFIRMED')
-      .where('attachment.Template.value', '==', 'check-in')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
-      .limit(1)
-      .get(),
+      .get()
   ]);
-
-  // user already has subscription of check-in
-  if (checkInSubscriptionDoc) {
-    return sendResponse(
-      conn,
-      code.conflict,
-      'You already have subscription of check-in',
-    );
-  }
 
   const activityRef = rootCollections.activities.doc();
   const { id: activityId } = activityRef;
