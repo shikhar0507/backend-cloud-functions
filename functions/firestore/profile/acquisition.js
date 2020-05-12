@@ -31,7 +31,7 @@ const handleCampaign = require('./utility/handleCampaign');
 
 const getAcquisitionObject = inputAcquisition => {
   const acquisitionToPush = {};
-  ['source', 'medium', 'campaign', 'office'].forEach(acquisitionField => {
+  ['source', 'medium', 'campaign', 'office','campaignId'].forEach(acquisitionField => {
     if (
       inputAcquisition.hasOwnProperty(acquisitionField) &&
       inputAcquisition[acquisitionField] !== null
@@ -67,7 +67,7 @@ module.exports = async conn => {
   if (validationResult) {
     return sendResponse(conn, code.badRequest, validationResult);
   }
-  const { source, medium, campaign, office } = conn.req.body;
+  const { source, medium, campaign, office, campaignId } = conn.req.body;
 
   const batch = db.batch();
   const [profileDoc, timerDoc] = await Promise.all([
@@ -95,6 +95,7 @@ module.exports = async conn => {
     medium,
     campaign,
     office,
+    campaignId
   });
   acquisitionArray.push(acquisitionFiltered);
 
