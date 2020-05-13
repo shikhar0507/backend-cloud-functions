@@ -539,12 +539,13 @@ const createDocsWithBatch = async (conn, locals) => {
 
   /** For base64 images, upload the json file to bucket */
   if (conn.isBase64 && conn.base64Field) {
-    delete activityMain.addendumDocRef;
-
+    activityMain.attachment[conn.base64Field].value='';
+    const activityForHandler = Object.assign({},activityMain);
+    delete activityForHandler.addendumDocRef;
     const json = {
       canEditMap,
       activityId,
-      activityData: activityMain,
+      activityData: activityForHandler,
       addendumData,
       addendumId: addendumDocRef.id,
       base64Field: conn.base64Field,
@@ -560,10 +561,9 @@ const createDocsWithBatch = async (conn, locals) => {
     await bucket.upload(filePath);
 
     /**
-     * Returning here since we want to skip activity
-     * creation via the batch.
+     * Temporary image handler will put the url in async like manner
      */
-    return sendResponse(conn, code.created);
+    //return sendResponse(conn, code.created);
   }
 
   await batch.commit();
