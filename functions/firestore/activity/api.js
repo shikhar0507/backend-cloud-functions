@@ -540,13 +540,15 @@ const createDocsWithBatch = async (conn, locals) => {
   /** For base64 images, upload the json file to bucket */
   if (conn.isBase64 && conn.base64Field) {
     activityMain.attachment[conn.base64Field].value='';
+    const addendumForHandler = Object.assign({},finalAddendum);
+    delete addendumForHandler.activityData.addendumDocRef;
     const activityForHandler = Object.assign({},activityMain);
     delete activityForHandler.addendumDocRef;
     const json = {
       canEditMap,
       activityId,
       activityData: activityForHandler,
-      addendumData,
+      addendumData:addendumForHandler,
       addendumId: addendumDocRef.id,
       base64Field: conn.base64Field,
       requestersPhoneNumber: conn.requester.phoneNumber,
