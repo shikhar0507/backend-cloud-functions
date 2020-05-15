@@ -136,28 +136,8 @@ module.exports = async ({ name: filePath, bucket }) => {
         });
       })
       .then(({ fileId }) => {
-        activityData.attachment[base64Field].value = cloudflareCdnUrl(
-          newHostName,
-          fileId,
-          fileName,
-        );
-
-        batch.set(activityRef, activityData);
-
-        batch.set(
-          activityData.addendumDocRef,
-          Object.assign({}, addendumDocObject, {
-            // Need to replace this because the old activityData object
-            // will contain the `base64` string which we don't want.
-            // Max file size for writing a single document
-            // in Firestore is 1048487 bytes.
-            activityData,
-          }),
-        );
-
         /** Delete the file since the activity creation is complete */
         return Promise.all([
-          batch.commit(),
           admin.storage().bucket(bucket).file(filePath).delete(),
         ]);
       });

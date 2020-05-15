@@ -51,6 +51,7 @@ const {
   getAdjustedGeopointsFromVenue,
   enumerateDaysBetweenDates,
   getCanEditValue,
+  cloudflareCdnUrl
 } = require('../../admin/utils');
 const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
@@ -536,16 +537,19 @@ const createDocsWithBatch = async (conn, locals) => {
       { merge: true },
     );
   });
-
+  
   /** For base64 images, upload the json file to bucket */
   if (conn.isBase64 && conn.base64Field) {
-    delete activityMain.addendumDocRef;
-
+    activityMain.attachment[conn.base64Field].value='';
+    const addendumForHandler = Object.assign({},finalAddendum);
+    delete addendumForHandler.activityData.addendumDocRef;
+    const activityForHandler = Object.assign({},activityMain);
+    delete activityForHandler.addendumDocRef;
     const json = {
       canEditMap,
       activityId,
-      activityData: activityMain,
-      addendumData,
+      activityData: activityForHandler,
+      addendumData:addendumForHandler,
       addendumId: addendumDocRef.id,
       base64Field: conn.base64Field,
       requestersPhoneNumber: conn.requester.phoneNumber,
@@ -560,11 +564,15 @@ const createDocsWithBatch = async (conn, locals) => {
     await bucket.upload(filePath);
 
     /**
-     * Returning here since we want to skip activity
-     * creation via the batch.
+     * Temporary image handler will put the url in async like manner
      */
-    return sendResponse(conn, code.created);
+    const base64Url = cloudflareCdnUrl('', '', activityRef.id);
+    activityMain.attachment[conn.base64Field].value = base64Url;
+    finalAddendum.ms_activity.attachment[conn.base64Field].value = base64Url; 
   }
+
+  batch.set(addendumDocRef, finalAddendum);
+  batch.set(activityRef, activityMain);
 
   await batch.commit();
 
