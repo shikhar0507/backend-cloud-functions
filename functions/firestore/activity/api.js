@@ -566,7 +566,7 @@ const createDocsWithBatch = async (conn, locals) => {
     /**
      * Temporary image handler will put the url in async like manner
      */
-    const base64Url = cloudflareCdnUrl('', '', activityRef.id);
+    const base64Url = cloudflareCdnUrl('', '', activityRef.id+'.jpg');
     activityMain.attachment[conn.base64Field].value = base64Url;
     finalAddendum.ms_activity.attachment[conn.base64Field].value = base64Url; 
   }
