@@ -339,17 +339,22 @@ const getActivityWithoutAddendum = (locals) => {
 const createDocsWithBatch = async (conn, locals) => {
   const batch = db.batch();
   const addendumDocRef = rootCollections.offices
-    .doc(locals.officeDoc.id)
-    .collection(subcollectionNames.ADDENDUM)
-    .doc();
-  const activityRef = rootCollections.activities.doc();
+      .doc(locals.officeDoc.id)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc();
+  let activityRef;
+  if (locals.method === 'create') {
+    activityRef = rootCollections.activities.doc();
+  } else {
+    activityRef = rootCollections.activities.doc(conn.req.body.activityId);
+  }
 
   const canEditMap = {};
   const { value: timezone } = locals.officeDoc.get('attachment.Timezone');
   const { id: activityId } = activityRef;
   const { date, months: month, years: year } = momentTz()
-    .tz(timezone)
-    .toObject();
+      .tz(timezone)
+      .toObject();
   if (locals.method === 'share') {
     /**
      * If the assignee existed , and this is a share request
@@ -361,9 +366,9 @@ const createDocsWithBatch = async (conn, locals) => {
         const phoneNumberExisting = assignee.id;
         if (locals.mainActivityData.share.indexOf(phoneNumberExisting) === -1) {
           batch.delete(
-            activityRef
-              .collection(subcollectionNames.ASSIGNEES)
-              .doc(phoneNumberExisting),
+              activityRef
+                  .collection(subcollectionNames.ASSIGNEES)
+                  .doc(phoneNumberExisting),
           );
         }
       });
@@ -374,45 +379,45 @@ const createDocsWithBatch = async (conn, locals) => {
     const addToInclude = true;
     canEditMap[phoneNumber] = null;
     batch.set(
-      activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
-      { addToInclude },
+        activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
+        { addToInclude },
     );
   });
 
   let activityMain = activityCreator(
-    {
-      attachment: locals.mainActivityData.attachment,
-      dateConflict: locals.mainActivityData.dateConflict,
-      dates: locals.mainActivityData.dates,
-      venue: locals.mainActivityData.venue,
-      schedule: locals.mainActivityData.schedule,
-      report: locals.templateDoc.get('report') || conn.req.body.report ||  '',
-      timestamp: Date.now(),
-      office: locals.mainActivityData.office,
-      addendumDocRef,
-      template: locals.mainActivityData.template,
-      status: locals.mainActivityData.status,
-      canEditRule: locals.templateDoc.get('canEditRule'),
-      officeId: locals.officeDoc.id,
-      activityName: activityName({
-        requester: conn.requester,
-        attachmentObject: conn.req.body.attachment,
-        templateName: conn.req.body.template,
-      }),
-      creator: {
-        phoneNumber: conn.requester.phoneNumber,
-        displayName: conn.requester.displayName,
-        photoURL: conn.requester.photoURL,
+      {
+        attachment: locals.mainActivityData.attachment,
+        dateConflict: locals.mainActivityData.dateConflict,
+        dates: locals.mainActivityData.dates,
+        venue: locals.mainActivityData.venue,
+        schedule: locals.mainActivityData.schedule,
+        report: locals.templateDoc.get('report') || conn.req.body.report ||  '',
+        timestamp: Date.now(),
+        office: locals.mainActivityData.office,
+        addendumDocRef,
+        template: locals.mainActivityData.template,
+        status: locals.mainActivityData.status,
+        canEditRule: locals.templateDoc.get('canEditRule'),
+        officeId: locals.officeDoc.id,
+        activityName: activityName({
+          requester: conn.requester,
+          attachmentObject: conn.req.body.attachment,
+          templateName: conn.req.body.template,
+        }),
+        creator: {
+          phoneNumber: conn.requester.phoneNumber,
+          displayName: conn.requester.displayName,
+          photoURL: conn.requester.photoURL,
+        },
       },
-    },
-    {
-      isCancelled: locals.mainActivityData.status === 'CANCELLED',
-      adjustedGeopoints: '',
-      relevantTime: '',
-      scheduleDates: '',
-      relevantTimeAndVenue: '',
-      createTimestamp: locals.mainActivityData.createTimestamp || Date.now(),
-    },
+      {
+        isCancelled: locals.mainActivityData.status === 'CANCELLED',
+        adjustedGeopoints: '',
+        relevantTime: '',
+        scheduleDates: '',
+        relevantTimeAndVenue: '',
+        createTimestamp: locals.mainActivityData.createTimestamp || Date.now(),
+      },
   );
 
   activityMain.timezone=timezone;
@@ -428,31 +433,31 @@ const createDocsWithBatch = async (conn, locals) => {
 
     if (placesQueryResult.failed) {
       return sendResponse(
-        conn,
-        code.conflict,
-        `'${address}' doesn't look like a real address`,
+          conn,
+          code.conflict,
+          `'${address}' doesn't look like a real address`,
       );
     }
 
     const {
       docs: [probablyExistingCustomer],
     } = await rootCollections.activities
-      .where('office', '==', locals.mainActivityData.office)
-      .where('template', '==', 'customer')
-      .where('status', '==', 'CONFIRMED')
-      .where(
-        'attachment.Name.value',
-        '==',
-        locals.mainActivityData.attachment.Name.value,
-      )
-      .limit(1)
-      .get();
+        .where('office', '==', locals.mainActivityData.office)
+        .where('template', '==', 'customer')
+        .where('status', '==', 'CONFIRMED')
+        .where(
+            'attachment.Name.value',
+            '==',
+            locals.mainActivityData.attachment.Name.value,
+        )
+        .limit(1)
+        .get();
 
     if (probablyExistingCustomer) {
       return sendResponse(
-        conn,
-        code.conflict,
-        `Customer with the name` +
+          conn,
+          code.conflict,
+          `Customer with the name` +
           ` '${activityMain.attachment.Name.value} already exists'`,
       );
     }
@@ -465,17 +470,17 @@ const createDocsWithBatch = async (conn, locals) => {
 
   // The field `Location` should exist.
   if (
-    activityMain.attachment.Location &&
-    activityMain.attachment.Location.value &&
-    activityMain.relevantTime
+      activityMain.attachment.Location &&
+      activityMain.attachment.Location.value &&
+      activityMain.relevantTime
   ) {
     activityMain.relevantTimeAndVenue =
-      `${activityMain.attachment.Location.value}` +
-      ` ${activityMain.relevantTime}`;
+        `${activityMain.attachment.Location.value}` +
+        ` ${activityMain.relevantTime}`;
   }
 
   const adjustedGeopoints = getAdjustedGeopointsFromVenue(
-    locals.mainActivityData.venue,
+      locals.mainActivityData.venue,
   );
 
   const templatesToSkip = new Set([
@@ -485,8 +490,8 @@ const createDocsWithBatch = async (conn, locals) => {
   ]);
 
   if (
-    !templatesToSkip.has(locals.mainActivityData.template) &&
-    adjustedGeopoints.length > 0
+      !templatesToSkip.has(locals.mainActivityData.template) &&
+      adjustedGeopoints.length > 0
   ) {
     activityMain.adjustedGeopoints = adjustedGeopoints[0];
   }
@@ -494,30 +499,30 @@ const createDocsWithBatch = async (conn, locals) => {
   const oldAddendum = getOldAddendumObject({locals,date,month,year,activityData:activityMain,conn,activityRef});
 
   const addendumData = addendumCreator(
-    { ms_timestamp: Date.now(), ms_month:month, ms_date:date, ms_year:year, ms_action: getAction(locals) },
-    {
-      ms_displayName: conn.requester.displayName,
-      ms_phoneNumber: conn.requester.phoneNumber,
-      ms_email: conn.requester.email,
-      ms_displayUrl: conn.requester.photoURL,
-      ms_isSupportRequest: conn.requester.isSupportRequest,
-      ms_potentialSameUsers: [],
-    },
-    getRoleDocument(locals),
-    {
-      ms_template: locals.mainActivityData.template,
-      ms_name: activityMain.activityName,
-      lat: '',ms_long: '',ms_url: '',ms_route: '',ms_locality: '',ms_adminstrative_area_level_2: '',ms_adminstrative_area_level_1: '',ms_country: '',ms_postalCode: '',
-    },
-    '',
-    '',
-     getActivityWithoutAddendum(locals)
+      { ms_timestamp: Date.now(), ms_month:month, ms_date:date, ms_year:year, ms_action: getAction(locals) },
+      {
+        ms_displayName: conn.requester.displayName,
+        ms_phoneNumber: conn.requester.phoneNumber,
+        ms_email: conn.requester.email,
+        ms_displayUrl: conn.requester.photoURL,
+        ms_isSupportRequest: conn.requester.isSupportRequest,
+        ms_potentialSameUsers: [],
+      },
+      getRoleDocument(locals),
+      {
+        ms_template: locals.mainActivityData.template,
+        ms_name: activityMain.activityName,
+        lat: '',ms_long: '',ms_url: '',ms_route: '',ms_locality: '',ms_adminstrative_area_level_2: '',ms_adminstrative_area_level_1: '',ms_country: '',ms_postalCode: '',
+      },
+      '',
+      '',
+      getActivityWithoutAddendum(locals)
   );
 
   if (
-    locals.mainActivityData.template === 'check-in' &&
-    locals.subscriptionDoc &&
-    locals.subscriptionDoc.get('lastGeopoint')
+      locals.mainActivityData.template === 'check-in' &&
+      locals.subscriptionDoc &&
+      locals.subscriptionDoc.get('lastGeopoint')
   ) {
     addendumData.subscriptionDocId = locals.subscriptionDoc.id;
     addendumData.lastGeopoint = locals.subscriptionDoc.get('lastGeopoint');
@@ -526,24 +531,20 @@ const createDocsWithBatch = async (conn, locals) => {
 
   const finalAddendum = Object.assign({},addendumData,oldAddendum);
 
-  batch.set(addendumDocRef, finalAddendum);
-  batch.set(activityRef, activityMain);
-
   // handle new assignees
   const newAssigneeSet = new Set(locals.mainActivityData.share);
   newAssigneeSet.forEach(assignee => {
     batch.set(
-      activityRef.collection(subcollectionNames.ASSIGNEES).doc(assignee),
-      { merge: true },
+        activityRef.collection(subcollectionNames.ASSIGNEES).doc(assignee),
+        { merge: true },
     );
   });
-  
+
   /** For base64 images, upload the json file to bucket */
   if (conn.isBase64 && conn.base64Field) {
-    activityMain.attachment[conn.base64Field].value='';
     const addendumForHandler = Object.assign({},finalAddendum);
-    delete addendumForHandler.activityData.addendumDocRef;
     const activityForHandler = Object.assign({},activityMain);
+    delete addendumForHandler.activityData.addendumDocRef;
     delete activityForHandler.addendumDocRef;
     const json = {
       canEditMap,
@@ -562,13 +563,13 @@ const createDocsWithBatch = async (conn, locals) => {
     fs.writeFileSync(filePath, JSON.stringify(json));
 
     await bucket.upload(filePath);
-
+    activityMain.attachment[conn.base64Field].value='';
     /**
      * Temporary image handler will put the url in async like manner
      */
-    const base64Url = cloudflareCdnUrl('', '', activityRef.id);
+    const base64Url = cloudflareCdnUrl('', '', `${activityId}.jpg`);
     activityMain.attachment[conn.base64Field].value = base64Url;
-    finalAddendum.ms_activity.attachment[conn.base64Field].value = base64Url; 
+    finalAddendum.ms_activity.attachment[conn.base64Field].value = base64Url;
   }
 
   batch.set(addendumDocRef, finalAddendum);
