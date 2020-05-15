@@ -17,7 +17,6 @@ const addLogoutBtn = () => {
     el.addEventListener('click', function () {
       firebase.auth().signOut().then(function () {
         redirect('')
-       
       })
     })
   }

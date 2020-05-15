@@ -48,6 +48,8 @@
                 el.querySelector('.text-indicator p').textContent = 'Log into Growthfile to add users'
                 return
             }
+            document.querySelector('.auth-block').remove();
+            document.querySelector('.share--background-image').style.backgroundImage = "url('../img/032.png')";
             const link = "\{{shareLink}}"
             const office = "\{{office}}"
             const displayName = "\{{displayName}}"
