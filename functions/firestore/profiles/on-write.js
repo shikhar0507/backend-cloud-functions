@@ -36,10 +36,7 @@ const rpn = require('request-promise-native');
 
 const profileIntegrationMS = async change => {
   try {
-    const integrationData = { phoneNumber: change.before.id };
-    if (change.after.data()) {
-      integrationData.new = change.after.data();
-    }
+    const integrationData = Object.assign({},change.after.data(),{phoneNumber:change.after.id});
     const uri = `https://us-central1-growthfilems.cloudfunctions.net/api/profile`;
     await rpn(uri, {
       method: 'PUT',
