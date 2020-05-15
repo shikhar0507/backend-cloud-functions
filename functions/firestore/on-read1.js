@@ -1,4 +1,3 @@
-
 /**
  * Copyright (c) 2020 GrowthFile
  *
@@ -76,12 +75,14 @@ const addendumFilter = doc => {
   return singleDoc;
 };
 
-const getAssigneeFromDocRef = async (docRef) => {
-  const {docs:assigneeDocuments} = await docRef.collection(subcollectionNames.ASSIGNEES).get();
-  return assigneeDocuments.map(document=>({
-        phoneNumber:document.id,
-        displayName: '',
-        photoURL: '',
+const getAssigneeFromDocRef = async docRef => {
+  const { docs: assigneeDocuments } = await docRef
+    .collection(subcollectionNames.ASSIGNEES)
+    .get();
+  return assigneeDocuments.map(document => ({
+    phoneNumber: document.id,
+    displayName: '',
+    photoURL: '',
   }));
 };
 
@@ -405,11 +406,18 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
   if (activities.length === 0) {
     return;
   }
-  await Promise.all(activities.map(async activity => {
+  for (let index = 0; index < activities.length; index += 1) {
+    const activity = activities[index];
     const venue = activity.get('venue');
     if (venue && Array.isArray(venue) && venue.length > 0) {
-      jsonObject.locations.push(locationFilter(activity));
-      return;
+      jsonObject.locations.push(
+        Object.assign({}, locationFilter(activity), {
+          addendumDocRef: null,
+          assignees: [],
+          activityId: activity.id,
+        }),
+      );
+      continue;
     }
     if (activity.get('template') === 'product') {
       jsonObject.products.push(
@@ -423,7 +431,7 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
           },
         ),
       );
-      return;
+      continue;
     }
     jsonObject.activities.push(
       Object.assign(
@@ -436,8 +444,7 @@ const sortOfficeActivities = async ({ office, jsonObject }) => {
         },
       ),
     );
-    return;
-  }));
+  }
 };
 
 const getOfficesFromSubscriptions = async ({ phoneNumber }) => {
@@ -568,7 +575,6 @@ const read = async conn => {
   if (sendLocations) {
     officeList.forEach(office => {
       const officeId = employeeOf[office];
-
       locationPromises.push(
         getActivityQueryByTemplate({ template: 'customer', officeId }),
         getActivityQueryByTemplate({ template: 'branch', officeId }),
