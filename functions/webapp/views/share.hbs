@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     \{{> headPartial this}}
+     <link rel="stylesheet" href="css/login.css">
+
+</head>
+
+<body>
+    \{{> headerPartial this}}
+        <div class="mdc-top-app-bar--fixed-adjust page-content-section">
+
+        <div class="mobile-logo--banner area">
+            <div class="inline-flex">
+                <a class="mdc-top-app-bar__action-item mdc-icon-button icon-expand" aria-label="logo" href="./">
+                    <img src="../../img/icon.png" id="header-logo">
+                </a>
+                <span class="mdc-typography--headline6">
+                    <strong>GROWTH</strong>FILE
+                </span>
+            </div>
+        </div>
+        <section class="section share--background-image">
+            <div class="content-max-width">
+                    <div class="auth-block">
+                        <div id="home-login"></div>
+                    </div>
+                    <div id='share-widget'></div>
+            </div>
+        </section>
+     
+        <div id='snackbar-container'></div>
+     \{{> footerPartial}}
+      \{{> scriptsPartial}}
+
+    <script src="js/env-config.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/login.js"></script>
+    <script src="js/core.js"></script>
+    <script src="js/static.js"></script>
+
+    <script>
+        firebase.auth().onAuthStateChanged(function (user) {
+            if (!user) {
+                const el = document.getElementById('home-login')
+                login(el)
+                el.querySelector('.text-indicator p').textContent = 'Log into Growthfile to add users'
+                return
+            }
+            const link = "\{{shareLink}}"
+            const office = "\{{office}}"
+            const displayName = "\{{displayName}}"
+            const widget = shareWidget(link,office,displayName);
+            document.getElementById('share-widget').appendChild(widget);
+            const continueURL = new URLSearchParams(window.location.search);
+            if(continueURL.get('continue')) {
+                const continueBtn = createElement('a',{
+                    href:'./app',
+                    className:'mdc-button mdc-button--raised full-width',
+                    textContent:'Continue'
+                })
+                const p = createElement('p',{
+                    className:'text-center',
+                    textContent:'Or',
+                    style:'margin-top:30px'
+                })
+                 widget.querySelector('.mdc-layout-grid').appendChild(p)
+                widget.querySelector('.mdc-layout-grid').appendChild(continueBtn)
+            }
+        })
+    </script>
+</body>
+</html>

@@ -1,55 +1,102 @@
-<header>
-    <div class="header-mobile">
-        <a href="/" class="flexed">
-            <img src="/img/logo-main.jpg" alt="Growthfile Logo" height="40" width="40" />
-            <p class="logo-text"><span class="bold">Growth</span>file</p>
-        </a>
-        <div class="header-links-container">
-            \{{#if isLoggedIn}}
-            <div id="header-profile-icon" href="#">
-                \{{> headerProfileIcon}}
-            </div>
-            <div class="dropdown-content">
-                <div class="menu-user-details mb-16">
-                    \{{#if photoURL}}
-                    <img width="96" height="96" src=\{{photoURL}} alt="header-profile-picture" alt="profile image" />
-                    \{{else}}
-                    <img width="96" height="96" src="img/person.png" alt="person image" />
-                    \{{/if}}
-                    <ul>
-                        <li class="ft-size-20 mb-8 bold">
-                            \{{#if displayName}}
-                            <i class="fas fa-user-circle mr-8"></i>
-                            \{{displayName}}
-                            \{{/if}}
-                        </li>
-                        <li class="menu-details-item mb-8">
-                            <i class="fas fa-phone mr-8"></i>
-                            \{{phoneNumber}}
-                        </li>
-                        <li class="menu-details-item mb-8">
-                            \{{#if email}}
-                            <i class="fas fa-envelope-open-text mr-8"></i>
-                            \{{email}}
-                            \{{/if}}
-                        </li>
-                    </ul>
-                </div>
-                <div class="bt flexed-sb m-0-20 ttuc">
-                    <a href="#" id="menu-logout-link">
-                        <i class="fas fa-sign-out-alt"></i>
-                        Log Out
+    <header class="mdc-top-app-bar mdc-top-app-bar--fixed" data-mdc-auto-init="MDCTopAppBar" style="z-index: 7;">
+        <div class="contact-us--header">
+            <span class="inline-flex"><i class="material-icons">phone</i>
+                Call us&nbsp;&nbsp;:&nbsp;
+                <a class="no-underline mdc-theme--on-primary" href="tel:+918595422858">&nbsp;+91 85954 22858</a>
+            </span>
+        </div>
+        <div class="mdc-top-app-bar__row content-max-width">
+            <section class="mdc-top-app-bar__section mdc-top-app-bar__section--align-start">
+
+                <a class="mdc-top-app-bar__action-item mdc-icon-button icon-expand" aria-label="logo" href="./">
+                    <img src="../../img/icon.png" id="header-logo">
+                </a>
+                <span class="mdc-top-app-bar__title">
+                    <strong>GROWTH</strong>FILE
+                </span>
+                <div class="top-bar-navigation" style="margin-left: 20px;">
+                    <a class="mdc-top-app-bar__action-item mdc-button" aria-label="pricing"
+                        data-mdc-auto-init="MDCRipple" href="./features.html"> Features
+                    </a>
+                    <div class="mdc-menu-surface--anchor">
+                        <button class="mdc-top-app-bar__action-item mdc-button" id='solutions-button'>
+                            <span class="mdc-button__label">Solutions</span>
+                            <i class="material-icons mdc-button__icon" aria-hidden="true">keyboard_arrow_down</i>
+                        </button>
+                        <div class="mdc-menu mdc-menu-surface" id='solutions-menu'>
+                            <ul class="mdc-list" role="menu" aria-hidden="true">
+                                <a class="mdc-list-item" role="menuitem" tabindex="-1" href="./solutions.html#Payroll">
+                                    <span class="mdc-list-item__text no-underline">Payroll</span>
+                                </a>
+                                <a class="mdc-list-item" role="menuitem" href="./solutions.html#Staff-allocation">
+                                    <span class="mdc-list-item__text no-underline">Staff
+                                        allocation</span>
+                                </a>
+                                <a class="mdc-list-item" role="menuitem" href="./solutions.html#Reimbursements">
+                                    <span class="mdc-list-item__text no-underline">Reimbursements</span>
+                                </a>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <a class="mdc-top-app-bar__action-item mdc-button" aria-label="pricing"
+                        data-mdc-auto-init="MDCRipple" href="./pricing.html"> Pricing
+                    </a>
+                    <a class="mdc-top-app-bar__action-item mdc-button" aria-label="log-in"
+                        data-mdc-auto-init="MDCRipple" href="./faq.html"> FAQ
                     </a>
                 </div>
-            </div>
-            \{{else}}
-            <a class="hidden" id="header-hamburger-icon" href="#">
-                <i class="fas fa-bars"></i>
-            </a>
-            <button id="login-button" href="/auth" class="mdc-button mdc-button--outlined">
-                <span class="mdc-button__label">Login</span>
-            </button>
+            </section>
+            <section class="mdc-top-app-bar__section mdc-top-app-bar__section--align-end" role="toolbar">
+
+
+                <span class="inline-flex mdc-top-app-bar__action-item call-us--icon mdc-top-app-bar__action-item"><i
+                        class="material-icons">phone</i>
+
+                    <a class="no-underline mdc-theme--on-primary" href="tel:+918595422858"> +91 85954 22858</a>
+                </span>
+                <a class="mdc-top-app-bar__action-item mdc-button" aria-label="log-in" data-mdc-auto-init="MDCRipple"
+                    href="./login" id='app-bar-login'>
+                    Log in
+                </a>
+                <a class="mdc-top-app-bar__action-item mdc-button mdc-theme--primary" style="background-color: white;"
+                    aria-label="log-in" data-mdc-auto-init="MDCRipple" href="./signup.html" id='app-bar-signup'>
+                    Free sign up
+                </a>
+                <div class="top-bar-menu">
+                    <button id="menu"
+                        class="mdc-icon-button mdc-top-app-bar__action-item mdc-icon-button hamburger-menu"
+                        aria-label="menu" aria-hidden="true" aria-pressed="false">
+                        <i class="material-icons mdc-icon-button__icon mdc-icon-button__icon--on">clear</i>
+                        <i class="material-icons mdc-icon-button__icon">menu</i>
+                    </button>
+                </div>
+            </section>
         </div>
-        \{{/if}}
-    </div>
-</header>
+    </header>
+    <aside class="mdc-drawer mdc-drawer--modal mdc-top-app-bar--fixed-adjust" style="width:100%"
+        data-mdc-auto-init="MDCDrawer">
+        <div class="mdc-drawer__content">
+            <nav class="mdc-list">
+                <a class="mdc-list-item mdc-list-item--activated" href="./features.html" aria-current="page"
+                    tabindex="0">
+
+                    <span class="mdc-list-item__text">Features</span>
+                </a>
+                <li class="mdc-list-divider"></li>
+                <a class="mdc-list-item" href="./solutions.html" tabindex="-1">
+                    <span class="mdc-list-item__text">Solutions</span>
+                </a>
+                <li class="mdc-list-divider"></li>
+                <a class="mdc-list-item" href="./pricing.html" tabindex="-1">
+                    <span class="mdc-list-item__text">Pricing</span>
+                </a>
+                <li class="mdc-list-divider"></li>
+                <a class="mdc-list-item" href="./faq.html" tabindex="-1">
+                    <span class="mdc-list-item__text">FAQ</span>
+                </a>
+                <li class="mdc-list-divider"></li>
+            </nav>
+        </div>
+    </aside>
+    <div class="mdc-drawer-scrim"></div>

@@ -24,7 +24,7 @@
 'use strict';
 
 // TODO: Check this out: https://oembed.com/
-
+const rpn = require('request-promise-native');
 const { auth, db, rootCollections } = require('../admin/admin');
 const { code } = require('../admin/responses');
 const {
@@ -432,6 +432,89 @@ const fetchOfficeData = async (locals, requester) => {
   return handleOfficePage(locals, requester);
 };
 
+
+const handleSharePage = async (locals, requester) => {
+  const source = require('./views/share.hbs')();
+  const template = handlebars.compile(source, {
+    strict: true,
+  });
+  console.log(requester);
+  return template({
+    pageTitle: 'Add users',
+    pageDescription: '',
+    isLoggedIn: !!requester.uid,
+    pageIndexable: false,
+    phoneNumber: requester.phoneNumber,
+    email: requester.email,
+    emailVerified: requester.emailVerified,
+    displayName: requester.displayName,
+    photoURL: requester.photoURL,
+    isSupport: requester.support,
+    isAdmin: requester.isAdmin,
+    isProduction: env.isProduction,
+    shareLink:requester.shareLink,
+    office:requester.office,
+    pageUrl: `https://growthfile.com/${locals.slug}`,
+  });
+};
+
+
+const generateShareLink = async (locals,requester) => {
+  // const deepLinkUrlParams = `?action=get-subscription&office=${requester.office}&utm_source=share_link_webapp&utm_medium=share_widget&utm_campaign=share_link`
+  // const request = await rpn(`https://firebasedynamiclinks.googleapis.com/v1/shortLinks?key=${env.mapsApiKey}`,{
+  //   headers:{
+  //     'Content-type': 'application/json'
+  //   },
+  //   body:{
+  //     "dynamicLinkInfo": {
+  //         "domainUriPrefix": "https://growthfileanalytics.page.link",
+  //         "link": `https://growthfile-207204.firebaseapp.com/v2/${deepLinkUrlParams}`,
+  //         "androidInfo": {
+  //             "androidPackageName": "com.growthfile.growthfileNew",
+  //             "androidMinPackageVersionCode": "15",
+  //         },
+  //         "navigationInfo": {
+  //             "enableForcedRedirect": true,
+  //         },
+  //         "iosInfo": {
+  //             "iosBundleId": "com.Growthfile.GrowthfileNewApp",
+  //             "iosAppStoreId": "1441388774",
+  //         },
+  //         "desktopInfo": {
+  //             "desktopFallbackLink": `https://www.growthfile.com/welcome${deepLinkUrlParams}`
+  //         },
+  //         "analyticsInfo": {
+  //             "googlePlayAnalytics": {
+  //                 "utmSource": "share_link_webapp",
+  //                 "utmMedium": "share_widget",
+  //                 "utmCampaign": "share_link",
+  //                 "utmTerm": "share_link+create",
+  //                 "utmContent": "Share",
+  //             }
+  //         },
+  //         "socialMetaTagInfo": {
+  //             "socialTitle": `${requester.office} @Growthfile`,
+  //             "socialDescription": "No More Conflicts On Attendance & Leaves. Record Them Automatically!",
+  //             "socialImageLink":requester.companyLogo
+  //         },
+  //     },
+  //     "suffix": {
+  //         "option": "SHORT"
+  //     }
+  //   },
+  //   json: true,
+  //   method:'POST'
+  // });
+
+
+  // console.log('short link',request.shortLink);
+  // requester.shareLink = request.shortLink;
+  requester.shareLink = 'https://growthfileanalytics.page.link/iZJj'
+  return handleSharePage(locals,requester);
+};
+
+
+
 const handleJoinPage = (locals, requester) => {
   const source = require('./views/join.hbs')();
   const template = handlebars.compile(source, {
@@ -509,6 +592,8 @@ const handleAuthPage = (locals, requester) => {
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 };
+
+
 
 const handleDownloadPage = (locals, requester) => {
   const source = require('./views/download.hbs')();
@@ -976,6 +1061,7 @@ const getAuthFromIdToken = async idToken => {
 module.exports = async (req, res) => {
   // https://firebase.google.com/docs/hosting/full-config#glob_pattern_matching
   const slug = getSlugFromUrl(req.url);
+
   const conn = {
     req,
     res,
@@ -1036,7 +1122,7 @@ module.exports = async (req, res) => {
     const requester = Object.assign({}, userRecord);
     // This is a read only property
     const customClaims = userRecord.customClaims || {};
-
+    
     requester.customClaims = customClaims;
     requester.adminOffices = requester.customClaims.admin || [];
     requester.isAdmin = requester.adminOffices.length > 0;
@@ -1079,17 +1165,48 @@ module.exports = async (req, res) => {
       return sendJSON(conn, await jsonApi(conn, requester));
     }
 
-    const officeDocQueryResult = await rootCollections.offices
-      .where('slug', '==', slug)
+    if(slug === 'share') {
+      const searchParams = new URLSearchParams(url.parse(conn.req.url).search);
+      const office = searchParams.get('office');
+      
+      // redirect user to admin panel
+      if(!office) {   
+            return  conn.res.status(code.temporaryRedirect).redirect('/app');      
+      };
+      
+      const officeDocQueryResult =  await rootCollections.offices
+      .where('office', '==', office)
       .limit(1)
       .get();
+
+      
+      if (officeDocQueryResult.empty) {
+        return handle404Page(conn);
+      }
+
+      requester.office = office;
+      
+      // Get company logo to add in share link
+      requester.companyLogo = officeDocQueryResult.docs[0]
+        .get('attachment')['Company Logo']
+        .value || 'https://growthfile-207204.firebaseapp.com/v2/img/ic_launcher.png';
+
+      return sendHTML(conn, await generateShareLink(locals, requester));
+
+    }
+    
+    const officeDocQueryResult = await rootCollections.offices
+    .where('slug', '==', slug)
+    .limit(1)
+    .get();
+
 
     if (officeDocQueryResult.empty) {
       return handle404Page(conn);
     }
-
+    
     locals.officeDoc = officeDocQueryResult.docs[0];
-
+  
     return sendHTML(conn, await fetchOfficeData(locals, requester));
   } catch (error) {
     console.error(error);
