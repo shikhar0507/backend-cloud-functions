@@ -70,7 +70,7 @@ const growthFileMsIntegration = async change => {
   const {
     after: { id: activityId },
   } = change;
-  const activityData = change.after.data();
+  const activityData = Object.assign({},change.after.data(),{addendumDocRef:after.get('addendumDocRef').path});
 
   switch (activityData.template) {
     case 'office':
