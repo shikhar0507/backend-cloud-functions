@@ -46,31 +46,31 @@
                 const el = document.getElementById('home-login')
                 login(el)
                 el.querySelector('.text-indicator p').textContent = 'Log into Growthfile to add users'
+                document.querySelector(".share--background-image").style.backgroundImage = 'none'
                 return
             }
 
+            document.querySelector(".share--background-image").style.backgroundImage = "url('./img/032.png')";
             document.querySelector('.auth-block').remove();
             createDynamiclink(`?action=get-subscription&office=${"\{{office}}"}&utm_source=share_link_webapp&utm_medium=share_widget&utm_campaign=share_link`,"\{{companyLogo}}").then(function(shareLink){
                 const widget = shareWidget(shareLink,"\{{office}}");
-                document.getElementById('share-widget').appendChild(widget);
+                document.getElementById('share-widget').appendChild(widget);  
+                    const continueBtn = createElement('a',{
+                        href:'./app',
+                        className:'mdc-button mdc-button--raised full-width',
+                        textContent:'Continue'
+                    })
+                    const p = createElement('p',{
+                        className:'text-center',
+                        textContent:'Or',
+                        style:'margin-top:30px'
+                    })
+                    widget.querySelector('.mdc-layout-grid').appendChild(p)
+                    widget.querySelector('.mdc-layout-grid').appendChild(continueBtn)
+                
             }).catch(console.error)
-
-            const continueURL = new URLSearchParams(window.location.search);
-            if(continueURL.get('continue')) {
-                const continueBtn = createElement('a',{
-                    href:'./app',
-                    className:'mdc-button mdc-button--raised full-width',
-                    textContent:'Continue'
-                })
-                const p = createElement('p',{
-                    className:'text-center',
-                    textContent:'Or',
-                    style:'margin-top:30px'
-                })
-                 widget.querySelector('.mdc-layout-grid').appendChild(p)
-                 widget.querySelector('.mdc-layout-grid').appendChild(continueBtn)
-            }
         })
+
     </script>
 </body>
 </html>

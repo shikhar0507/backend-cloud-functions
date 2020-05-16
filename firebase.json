@@ -3,6 +3,7 @@
         {
             "target":"v2",
             "public": "website",
+            "site":"growthfilev2-0",
             "cleanUrls": true,
             "trailingSlash": false,
             "ignore": [
