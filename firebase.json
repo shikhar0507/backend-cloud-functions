@@ -1,6 +1,7 @@
 {
     "hosting": [
         {
+            "target":"v2",
             "site": "growthfile-webapp",
             "public": "website",
             "cleanUrls": true,
