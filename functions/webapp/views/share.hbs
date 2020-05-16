@@ -50,9 +50,8 @@
             }
 
             document.querySelector('.auth-block').remove();
-            document.querySelector('.share--background-image').style.backgroundImage = "url('../img/032.png')";
             createDynamiclink(`?action=get-subscription&office=${"\{{office}}"}&utm_source=share_link_webapp&utm_medium=share_widget&utm_campaign=share_link`,"\{{companyLogo}}").then(function(shareLink){
-                const widget = shareWidget(link,office,displayName);
+                const widget = shareWidget(shareLink,"\{{office}}");
                 document.getElementById('share-widget').appendChild(widget);
             }).catch(console.error)
 

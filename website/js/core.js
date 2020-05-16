@@ -509,7 +509,7 @@ const createDynamiclink = (urlParam, logo) => {
 }
 
 
-const shareWidget = (link, office, displayName) => {
+const shareWidget = (link, office) => {
 
 
     const el = createElement('div', {
@@ -522,14 +522,8 @@ const shareWidget = (link, office, displayName) => {
 
     grid.appendChild(createElement('h1', {
         className: 'mdc-typography--headline5 mb-10 mt-0 share-widget--heading text-center',
-        textContent: 'Invite your employees to join and use '
+        textContent: 'Invite your employees to join and use '+office
     }))
-
-    grid.appendChild(createElement('h1', {
-        className: 'mdc-typography--headline4 mt-10 mb-10 share-widget--heading mdc-theme--primary text-center',
-        textContent: office
-    }))
-
 
     const linkManager = createElement('div', {
         className: 'link-manager mt-20'
@@ -545,7 +539,7 @@ const shareWidget = (link, office, displayName) => {
 
     field.trailingIcon_.root_.onclick = function () {
         field.focus()
-        const shareText = `Hi, ${displayName} wants you to use Growthfile to Check-in & collect proof of work without any effort. Download app & login now`
+        const shareText = `I want you to use Growthfile at work daily to avoid payment disputes and Get Paid in Full.  Click here to download the app and start now.`
         if (navigator.share) {
             const shareData = {
                 title: 'Share link',
@@ -562,7 +556,7 @@ const shareWidget = (link, office, displayName) => {
             return
         }
         if(navigator.clipboard) {
-            navigator.clipboard.writeText(shareText + link + ` , Any issues do contact +918595422858`).then(function(){
+            navigator.clipboard.writeText(shareText + link).then(function(){
                 showSnacksApiResponse('Link copied')
             }).catch(function(error){
                 console.log(error)
