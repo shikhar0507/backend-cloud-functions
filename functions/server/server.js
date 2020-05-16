@@ -84,7 +84,19 @@ const handleResource = conn => {
     );
   }
 
-  return resource.func(conn);
+  if (conn.requester.customClaims.admin && conn.requester.customClaims.admin.length) {
+    return resource.func(conn);
+  }
+
+  if (conn.requester.customClaims.manageTemplates && resource.checkManageTemplates) {
+    return resource.func(conn);
+  }
+
+ return sendResponse(
+    conn,
+    code.forbidden,
+    `You are not allowed to access this resource`
+  );
 };
 
 const getProfile = conn => {
@@ -406,4 +418,12 @@ module.exports = async (req, res) => {
   }
 
   return checkAuthorizationToken(conn);
+
+  // const r = await auth.getUserByPhoneNumber('+918527801091');
+  // await auth.setCustomUserClaims(r.uid, {
+  //   support: true,
+  // })
+
+  // sendResponse(conn ,200);
+
 };
