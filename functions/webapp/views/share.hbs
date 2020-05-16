@@ -48,13 +48,14 @@
                 el.querySelector('.text-indicator p').textContent = 'Log into Growthfile to add users'
                 return
             }
+
             document.querySelector('.auth-block').remove();
             document.querySelector('.share--background-image').style.backgroundImage = "url('../img/032.png')";
-            const link = "\{{shareLink}}"
-            const office = "\{{office}}"
-            const displayName = "\{{displayName}}"
-            const widget = shareWidget(link,office,displayName);
-            document.getElementById('share-widget').appendChild(widget);
+            createDynamiclink(`?action=get-subscription&office=${"\{{office}}"}&utm_source=share_link_webapp&utm_medium=share_widget&utm_campaign=share_link`,"\{{companyLogo}}").then(function(shareLink){
+                const widget = shareWidget(link,office,displayName);
+                document.getElementById('share-widget').appendChild(widget);
+            }).catch(console.error)
+
             const continueURL = new URLSearchParams(window.location.search);
             if(continueURL.get('continue')) {
                 const continueBtn = createElement('a',{
@@ -68,7 +69,7 @@
                     style:'margin-top:30px'
                 })
                  widget.querySelector('.mdc-layout-grid').appendChild(p)
-                widget.querySelector('.mdc-layout-grid').appendChild(continueBtn)
+                 widget.querySelector('.mdc-layout-grid').appendChild(continueBtn)
             }
         })
     </script>

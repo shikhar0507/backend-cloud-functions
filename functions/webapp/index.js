@@ -434,12 +434,12 @@ const fetchOfficeData = async (locals, requester) => {
 };
 
 
-const handleSharePage = async (locals, requester) => {
+const handleSharePage =  (locals, requester) => {
   const source = require('./views/share.hbs')();
   const template = handlebars.compile(source, {
     strict: true,
   });
-  console.log(requester);
+
   return template({
     pageTitle: 'Add users',
     pageDescription: '',
@@ -453,67 +453,11 @@ const handleSharePage = async (locals, requester) => {
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
     isProduction: env.isProduction,
-    shareLink:requester.shareLink,
     office:requester.office,
+    companyLogo:requester.companyLogo,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 };
-
-
-const generateShareLink = async (locals,requester) => {
-  // const deepLinkUrlParams = `?action=get-subscription&office=${requester.office}&utm_source=share_link_webapp&utm_medium=share_widget&utm_campaign=share_link`
-  // const request = await rpn(`https://firebasedynamiclinks.googleapis.com/v1/shortLinks?key=${env.mapsApiKey}`,{
-  //   headers:{
-  //     'Content-type': 'application/json'
-  //   },
-  //   body:{
-  //     "dynamicLinkInfo": {
-  //         "domainUriPrefix": "https://growthfileanalytics.page.link",
-  //         "link": `https://growthfile-207204.firebaseapp.com/v2/${deepLinkUrlParams}`,
-  //         "androidInfo": {
-  //             "androidPackageName": "com.growthfile.growthfileNew",
-  //             "androidMinPackageVersionCode": "15",
-  //         },
-  //         "navigationInfo": {
-  //             "enableForcedRedirect": true,
-  //         },
-  //         "iosInfo": {
-  //             "iosBundleId": "com.Growthfile.GrowthfileNewApp",
-  //             "iosAppStoreId": "1441388774",
-  //         },
-  //         "desktopInfo": {
-  //             "desktopFallbackLink": `https://www.growthfile.com/welcome${deepLinkUrlParams}`
-  //         },
-  //         "analyticsInfo": {
-  //             "googlePlayAnalytics": {
-  //                 "utmSource": "share_link_webapp",
-  //                 "utmMedium": "share_widget",
-  //                 "utmCampaign": "share_link",
-  //                 "utmTerm": "share_link+create",
-  //                 "utmContent": "Share",
-  //             }
-  //         },
-  //         "socialMetaTagInfo": {
-  //             "socialTitle": `${requester.office} @Growthfile`,
-  //             "socialDescription": "No More Conflicts On Attendance & Leaves. Record Them Automatically!",
-  //             "socialImageLink":requester.companyLogo
-  //         },
-  //     },
-  //     "suffix": {
-  //         "option": "SHORT"
-  //     }
-  //   },
-  //   json: true,
-  //   method:'POST'
-  // });
-
-
-  // console.log('short link',request.shortLink);
-  // requester.shareLink = request.shortLink;
-  requester.shareLink = 'https://growthfileanalytics.page.link/iZJj'
-  return handleSharePage(locals,requester);
-};
-
 
 
 const handleJoinPage = (locals, requester) => {
@@ -1172,7 +1116,7 @@ module.exports = async (req, res) => {
       
       // redirect user to admin panel
       if(!office) {   
-            return  conn.res.status(code.temporaryRedirect).redirect('/app');      
+          return conn.res.status(code.temporaryRedirect).redirect('/app');      
       };
       
       const officeDocQueryResult =  await rootCollections.offices
@@ -1192,7 +1136,7 @@ module.exports = async (req, res) => {
         .get('attachment')['Company Logo']
         .value || 'https://growthfile-207204.firebaseapp.com/v2/img/ic_launcher.png';
 
-      return sendHTML(conn, await generateShareLink(locals, requester));
+      return sendHTML(conn, handleSharePage(locals, requester));
 
     }
     
