@@ -34,7 +34,8 @@ const getAcquisitionObject = inputAcquisition => {
   ['source', 'medium', 'campaign', 'office','campaignId'].forEach(acquisitionField => {
     if (
       inputAcquisition.hasOwnProperty(acquisitionField) &&
-      inputAcquisition[acquisitionField] !== null
+      inputAcquisition[acquisitionField] !== null &&
+      inputAcquisition[acquisitionField] !== undefined 
     ) {
       acquisitionToPush[acquisitionField] = inputAcquisition[acquisitionField];
     }
