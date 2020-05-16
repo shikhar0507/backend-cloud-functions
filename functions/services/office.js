@@ -298,12 +298,12 @@ const createOffice = async conn => {
   const [
     {
       docs: [templateDoc],
-    }
+    },
   ] = await Promise.all([
     rootCollections.activityTemplates
       .where('name', '==', template)
       .limit(1)
-      .get()
+      .get(),
   ]);
 
   const activityRef = rootCollections.activities.doc();

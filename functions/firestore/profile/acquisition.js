@@ -31,15 +31,18 @@ const handleCampaign = require('./utility/handleCampaign');
 
 const getAcquisitionObject = inputAcquisition => {
   const acquisitionToPush = {};
-  ['source', 'medium', 'campaign', 'office','campaignId'].forEach(acquisitionField => {
-    if (
-      inputAcquisition.hasOwnProperty(acquisitionField) &&
-      inputAcquisition[acquisitionField] !== null &&
-      inputAcquisition[acquisitionField] !== undefined 
-    ) {
-      acquisitionToPush[acquisitionField] = inputAcquisition[acquisitionField];
-    }
-  });
+  ['source', 'medium', 'campaign', 'office', 'campaignId'].forEach(
+    acquisitionField => {
+      if (
+        inputAcquisition.hasOwnProperty(acquisitionField) &&
+        inputAcquisition[acquisitionField] !== null &&
+        inputAcquisition[acquisitionField] !== undefined
+      ) {
+        acquisitionToPush[acquisitionField] =
+          inputAcquisition[acquisitionField];
+      }
+    },
+  );
   return acquisitionToPush;
 };
 
@@ -96,7 +99,7 @@ module.exports = async conn => {
     medium,
     campaign,
     office,
-    campaignId
+    campaignId,
   });
   acquisitionArray.push(acquisitionFiltered);
 
@@ -107,7 +110,7 @@ module.exports = async conn => {
       'Campaign must be associated with a office',
     );
   }
-  if (campaign==='share_link' && !office) {
+  if (campaign === 'share_link' && !office) {
     try {
       // handle errors in subscription granting
       await handleCampaign(conn, campaign);

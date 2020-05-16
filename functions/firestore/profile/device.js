@@ -143,41 +143,37 @@ module.exports = async conn => {
 
   const updateObject = {};
   if (!(id && id !== '')) {
-    updateObject.latestDeviceId=id;
+    updateObject.latestDeviceId = id;
   }
 
   if (!(deviceBrand && deviceBrand !== '')) {
-    updateObject.latestDeviceBrand=deviceBrand;
+    updateObject.latestDeviceBrand = deviceBrand;
   }
 
   if (!(deviceModel && deviceModel !== '')) {
-    updateObject.latestDeviceModel=deviceModel;
+    updateObject.latestDeviceModel = deviceModel;
   }
 
   if (!(baseOs && baseOs !== '')) {
-    updateObject.latestDeviceOs=baseOs;
+    updateObject.latestDeviceOs = baseOs;
   }
 
   if (!(appVersion && appVersion !== '')) {
-    updateObject.latestAppVersion=appVersion;
+    updateObject.latestAppVersion = appVersion;
   }
 
   if (!(osVersion && osVersion !== '')) {
-    updateObject.latestOsVersion=osVersion;
+    updateObject.latestOsVersion = osVersion;
   }
 
   if (!(radioVersion && radioVersion !== '')) {
-    updateObject.latestRadioVersion=radioVersion;
+    updateObject.latestRadioVersion = radioVersion;
   }
   if (!(idbVersion && idbVersion !== '')) {
-    updateObject.latestIdbVersion=idbVersion;
+    updateObject.latestIdbVersion = idbVersion;
   }
 
-  batch.set(
-    updatesDoc.ref,
-    updateObject,
-    { merge: true },
-  );
+  batch.set(updatesDoc.ref, updateObject, { merge: true });
 
   await batch.commit();
   return sendResponse(conn, code.ok, 'Device Synced');

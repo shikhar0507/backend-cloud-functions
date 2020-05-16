@@ -84,18 +84,24 @@ const handleResource = conn => {
     );
   }
 
-  if (conn.requester.customClaims.admin && conn.requester.customClaims.admin.length) {
+  if (
+    conn.requester.customClaims.admin &&
+    conn.requester.customClaims.admin.length
+  ) {
     return resource.func(conn);
   }
 
-  if (conn.requester.customClaims.manageTemplates && resource.checkManageTemplates) {
+  if (
+    conn.requester.customClaims.manageTemplates &&
+    resource.checkManageTemplates
+  ) {
     return resource.func(conn);
   }
 
- return sendResponse(
+  return sendResponse(
     conn,
     code.forbidden,
-    `You are not allowed to access this resource`
+    `You are not allowed to access this resource`,
   );
 };
 
@@ -425,5 +431,4 @@ module.exports = async (req, res) => {
   // })
 
   // sendResponse(conn ,200);
-
 };

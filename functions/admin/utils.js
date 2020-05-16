@@ -680,7 +680,6 @@ const toTwoDecimalPlace = val => {
     return val;
   }
 
-
   const toCeil = (number, digits) => {
     const factor = Math.pow(10, digits);
 
@@ -690,7 +689,6 @@ const toTwoDecimalPlace = val => {
   const toFloor = (number, digits) => {
     const factor = Math.pow(10, digits);
     return Math.floor(number * factor) / factor;
-    
   };
 
   let result;

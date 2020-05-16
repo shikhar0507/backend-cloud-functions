@@ -92,8 +92,7 @@ module.exports = async conn => {
    * location: `object(latitude, longitude)`
    */
 
-  
-  console.log("Req : ",conn.requester.customClaims);
+  console.log('Req : ', conn.requester.customClaims);
   if (!conn.requester.isSupportRequest) {
     if (
       !conn.requester.customClaims.admin ||
