@@ -4,7 +4,6 @@
 <head>
      \{{> headPartial this}}
      <link rel="stylesheet" href="css/login.css">
-
 </head>
 
 <body>
@@ -23,7 +22,7 @@
         </div>
         <section class="section share--background-image">
             <div class="content-max-width">
-                    <div class="auth-block">
+                    <div class="auth-block area">
                         <div id="home-login"></div>
                     </div>
                     <div id='share-widget'></div>
@@ -46,11 +45,12 @@
                 const el = document.getElementById('home-login')
                 login(el)
                 el.querySelector('.text-indicator p').textContent = 'Log into Growthfile to add users'
-                document.querySelector(".share--background-image").style.backgroundImage = 'none'
+                document.querySelector(".share--background-image").classList.add("background-hidden")
                 return
             }
 
-            document.querySelector(".share--background-image").style.backgroundImage = "url('./img/032.png')";
+            document.querySelector(".share--background-image").classList.add("background-visible")
+
             document.querySelector('.auth-block').remove();
             createDynamiclink(`?action=get-subscription&office=${"\{{office}}"}&utm_source=share_link_webapp&utm_medium=share_widget&utm_campaign=share_link`,"\{{companyLogo}}").then(function(shareLink){
                 const widget = shareWidget(shareLink,"\{{office}}");
