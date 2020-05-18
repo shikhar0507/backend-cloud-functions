@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2020 GrowthFile
+ * Copyright (c) 2018 GrowthFile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -29,10 +29,13 @@ const {
   addendumCreator,
 } = require('../firestore/activity/helper');
 const { httpsActions, subcollectionNames } = require('../admin/constants');
+const { isValidEmail } = require('../admin/utils');
 const env = require('../admin/env');
 const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
-const { Attachment, Creator } = require('../admin/protos');
+const { Attachment } = require('../admin/protos');
+const PNF = require('google-libphonenumber').PhoneNumberFormat;
+const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 
 const getDataFromLead = leadData => {
   const mainData = {};
@@ -48,6 +51,11 @@ const getAddendumRef = officeId =>
     .collection(subcollectionNames.ADDENDUM)
     .doc();
 
+const getPhoneNumberFromLead = phoneNumber => {
+  const number = phoneUtil.parseAndKeepRawInput(phoneNumber.toString(), 'IN');
+  return phoneUtil.format(number, PNF.E164);
+};
+
 const createOfficeFromLead = async ({ leadGenId }) => {
   const token = env.fbPageToken;
   const getLeadDataUri = `https://graph.facebook.com/v7.0/${leadGenId}?access_token=${token}`;
@@ -55,14 +63,17 @@ const createOfficeFromLead = async ({ leadGenId }) => {
     json: true,
     method: 'GET',
   });
-  const leadData = getDataFromLead(responseFromGraphApi.field_data);
   const {
     work_email,
     full_name,
     work_phone_number,
     company_name,
     company_address,
-  } = leadData;
+  } = getDataFromLead(responseFromGraphApi.field_data);
+  if (!isValidEmail(work_email)) {
+    throw new Error(`Email is not valid: ${work_email}`);
+  }
+  const validatedPhoneNumber = getPhoneNumberFromLead(work_phone_number);
   const officeCheck = await rootCollections.activities
     .where('template', '==', 'office')
     .where('office', '==', company_name)
@@ -92,7 +103,7 @@ const createOfficeFromLead = async ({ leadGenId }) => {
     const activityRef = rootCollections.activities.doc();
     const { id: activityId } = activityRef;
     const officeId = activityId;
-    const creator = new Creator(work_phone_number, full_name, '').toObject();
+    const creator = {};
     const timezone = 'Asia/Kolkata';
 
     const officeActivity = activityCreator(
@@ -100,7 +111,7 @@ const createOfficeFromLead = async ({ leadGenId }) => {
         attachment: new Attachment(
           {
             Name: company_name,
-            'First Contact': work_phone_number,
+            'First Contact': validatedPhoneNumber,
             Timezone: timezone,
             'Registered Office Address': company_address,
             Currency: 'INR',
@@ -123,7 +134,7 @@ const createOfficeFromLead = async ({ leadGenId }) => {
           startTime: '',
           endTime: '',
         })),
-        report: 'type',
+        report: templateDoc.get('report') || 'type',
         timestamp: Date.now(),
         office: company_name,
         addendumDocRef: getAddendumRef(activityId),
@@ -160,7 +171,7 @@ const createOfficeFromLead = async ({ leadGenId }) => {
       },
       {
         ms_displayName: full_name,
-        ms_phoneNumber: work_phone_number,
+        ms_phoneNumber: validatedPhoneNumber,
         ms_email: work_email,
         ms_displayUrl: '',
         ms_isSupportRequest: false,
@@ -215,7 +226,7 @@ const storeEvents = async conn => {
     receivedAt: Date.now(),
   });
 
-  return '';
+  return ref;
 };
 
 module.exports = async conn => {
@@ -231,15 +242,39 @@ module.exports = async conn => {
   }
 
   if (conn.req.method === 'POST') {
-    await storeEvents(conn);
+    const facebookEventDocReference = await storeEvents(conn);
     if (conn.req.body.entry) {
       if (
         Array.isArray(conn.req.body.entry) &&
         conn.req.body.entry[0].changes[0].field === 'leadgen'
       ) {
-        await createOfficeFromLead({
-          leadGenId: conn.req.body.entry[0].changes[0].value.leadgen_id,
-        });
+        try {
+          const leadGenId = conn.req.body.entry[0].changes[0].value.leadgen_id;
+          // check if this particular lead is already received
+          const leadDocQuery = await rootCollections.facebookEvents
+            .where('leadGenId', '==', leadGenId)
+            .limit(1)
+            .get();
+          if (leadDocQuery.empty) {
+            await facebookEventDocReference.set({ leadGenId }, { merge: true });
+            await createOfficeFromLead({
+              leadGenId,
+            });
+          }
+        } catch (error) {
+          console.error(error);
+          const batch = db.batch();
+          batch.set(rootCollections.instant.doc(), {
+            subject: 'Facebook Lead Office Creation,error',
+            messageBody: `LeadGen Id: ${
+              conn.req.body.entry[0].changes[0].value.leadgen_id
+            }. 
+            Error::: ${error.name.toString()}
+             ${error.message.toString()}
+             ${error.stack ? error.stack.toString() : ''}`,
+          });
+          await batch.commit();
+        }
       }
     }
     return '';
