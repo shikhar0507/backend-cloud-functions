@@ -42,7 +42,6 @@ const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
 const handlebars = require('handlebars');
 
-
 handlebars.registerPartial('headPartial', require('./views/partials/head.hbs')());
 handlebars.registerPartial('headerPartial', require('./views/partials/header.hbs')());
 handlebars.registerPartial('footerPartial', require('./views/partials/footer.hbs')());
