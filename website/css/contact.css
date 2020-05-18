@@ -1,0 +1,55 @@
+form {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+footer {
+    position: absolute;
+    bottom: 0;
+}
+
+form p {
+    text-align: center;
+}
+
+fieldset p {
+    margin: 10px 0;
+}
+
+.input-field {
+    min-width: -webkit-fill-available;
+}
+
+.container h1 {
+    font-size: 20px;
+    text-align: center;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+}
+
+.submit-button-container {
+    text-align: center;
+}
+
+.fill {
+    min-height: 150px;
+}
+
+.form-container {
+    justify-content: center;
+}
+
+header {
+    margin-bottom: 0 !important;
+}
+
+main {
+    margin-top: -70px;
+}
+
+@media (min-width: 768px) {
+    .fill {
+        min-height: 30vh;
+    }
+}

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    \{{> headPartial this}}
+    <link rel="stylesheet" href="css/contact.css">
+</head>
+
+<body>
+    \{{> headerPartial this}}
+    <div class="pad-below-header"></div>
+    <div class="container">
+        <section class="fill bg-magenta"></section>
+        <section class="form-container flexed form-container flexed raised">
+            <main class="border pad bg-gray">
+                <h1>Contact Us</h1>
+                <form>
+                    <p>
+                        <span class="hidden animated fadeIn" id="message">Something went wrong</span>
+                    </p>
+                    {{!-- Name, Contact, Email, Query --}}
+                    <fieldset>
+                        <p>
+                            \{{#if displayName}}
+                            <input value=\{{displayName}} class="input-field" type="text" placeholder="Name" disabled>
+                            \{{else}}
+                            <input class="input-field" type="text" placeholder="Name">
+                            \{{/if}}
+                        </p>
+                        <p>
+                            \{{#if email}}
+                            <input value=\{{email}} class="input-field" type="email" placeholder="Email" disabled>
+                            \{{else}}
+                            <input class="input-field" type="email" placeholder="Email">
+                            \{{/if}}
+                        </p>
+                    </fieldset>
+                    <fieldset>
+                        <p>
+                            <textarea placeholder="Type here..." class="input-field" name="" id="" cols="30"
+                                rows="5"></textarea>
+                        </p>
+                    </fieldset>
+                    <p class="submit-button-container">
+                        <button id="submit-button" class="button" type="button">Send</button>
+                    </p>
+                </form>
+            </main>
+        </section>
+    </div>
+    \{{> footerPartial}}
+    \{{> scriptsPartial}}
+    <script defer src="js/contact.js"></script>
+</body>
+
+</html>

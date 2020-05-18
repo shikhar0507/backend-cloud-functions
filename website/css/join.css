@@ -1,0 +1,40 @@
+form p span {
+    margin-top: 10px;
+    display: inline-block;
+}
+
+form p input {
+    min-width: -webkit-fill-available;
+    min-width: -moz-available;
+    line-height: 40px;
+}
+
+.icon-container {
+    text-align: center;
+    font-size: 80px;
+    margin: 10px 0px;
+}
+
+.card {
+    min-height: 50px;
+    padding: 10px 20px;
+    border: 1px solid rgba(0, 0, 0, .09);
+    margin-bottom: 16px;
+}
+
+.join-section input {
+    border: 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.join-section input:focus {
+    outline: none;
+}
+
+@media (min-width: 768px) {
+    main {
+        display: flex;
+        justify-content: center;
+        padding: 20px 30px;
+    }
+}
