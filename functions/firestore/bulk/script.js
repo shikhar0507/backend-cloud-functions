@@ -91,6 +91,8 @@ module.exports = async conn => {
    * encoded: csvString
    * location: `object(latitude, longitude)`
    */
+
+  console.log('Req : ', conn.requester.customClaims);
   if (!conn.requester.isSupportRequest) {
     if (
       !conn.requester.customClaims.admin ||

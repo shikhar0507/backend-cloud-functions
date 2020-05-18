@@ -241,7 +241,7 @@ module.exports = async conn => {
     batch.set(
       rootCollections.profiles.doc(conn.requester.phoneNumber),
       {
-        registrationToken: conn.req.query.registrationToken
+        registrationToken: conn.req.query.registrationToken,
       },
       {
         merge: true,

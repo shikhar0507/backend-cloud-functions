@@ -24,7 +24,8 @@
 'use strict';
 
 // TODO: Check this out: https://oembed.com/
-
+const rpn = require('request-promise-native');
+const { URLSearchParams } = require('url');
 const { auth, db, rootCollections } = require('../admin/admin');
 const { code } = require('../admin/responses');
 const {
@@ -41,27 +42,11 @@ const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
 const handlebars = require('handlebars');
 
-const headPartial = require('./views/partials/head.hbs')();
-const headerPartial = require('./views/partials/header.hbs')();
-const footerPartial = require('./views/partials/footer.hbs')();
-const scriptsPartial = require('./views/partials/scripts.hbs')();
-const actionsAside = require('./views/partials/actions-aside.hbs')();
-const featuredPartial = require('./views/partials/featured.hbs')();
-const headerProfileIcon = require('./views/partials/header-profile-icon.hbs')();
-const appFeaturesPartial = require('./views/partials/app-features.hbs')();
-const heroPartial = require('./views/partials/hero.hbs')();
-const enquiryPartial = require('./views/partials/enquiry.hbs')();
-
-handlebars.registerPartial('scriptsPartial', scriptsPartial);
-handlebars.registerPartial('headPartial', headPartial);
-handlebars.registerPartial('headerPartial', headerPartial);
-handlebars.registerPartial('footerPartial', footerPartial);
-handlebars.registerPartial('actionsAside', actionsAside);
-handlebars.registerPartial('featuredPartial', featuredPartial);
-handlebars.registerPartial('headerProfileIcon', headerProfileIcon);
-handlebars.registerPartial('appFeaturesPartial', appFeaturesPartial);
-handlebars.registerPartial('heroPartial', heroPartial);
-handlebars.registerPartial('enquiryPartial', enquiryPartial);
+handlebars.registerPartial('headPartial', require('./views/partials/head.hbs')());
+handlebars.registerPartial('headerPartial', require('./views/partials/header.hbs')());
+handlebars.registerPartial('footerPartial', require('./views/partials/footer.hbs')());
+handlebars.registerPartial('scriptsPartial', require('./views/partials/scripts.hbs')());
+handlebars.registerPartial('enquiryPartial', require('./views/partials/enquiry.hbs')());
 
 const sendHTML = (conn, html) => conn.res.send(html);
 const sendJSON = (conn, json) => conn.res.json(json);
@@ -432,69 +417,14 @@ const fetchOfficeData = async (locals, requester) => {
   return handleOfficePage(locals, requester);
 };
 
-const handleJoinPage = (locals, requester) => {
-  const source = require('./views/join.hbs')();
+const handleSharePage = (locals, requester) => {
+  const source = require('./views/share.hbs')();
   const template = handlebars.compile(source, {
     strict: true,
   });
 
   return template({
-    pageTitle: 'Join Growthfile',
-    isLoggedIn: !!requester.uid,
-    pageIndexable: true,
-    pageDescription: 'Join Growthfile',
-    phoneNumber: requester.phoneNumber,
-    email: requester.email,
-    emailVerified: requester.emailVerified,
-    displayName: requester.displayName,
-    photoURL: requester.photoURL,
-    isSupport: requester.support,
-    isAdmin: requester.isAdmin,
-    isProduction: env.isProduction,
-    pageUrl: `https://growthfile.com/${locals.slug}`,
-  });
-};
-
-const handleHomePage = (locals, requester) => {
-  const source = require('./views/index.hbs')();
-  const template = handlebars.compile(source, {
-    strict: true,
-  });
-
-  return template({
-    user: JSON.stringify({
-      isSupport: requester.isSupport,
-      admin: requester.isAdmin,
-    }),
-    mapsApiKey: env.mapsApiKey,
-    pageTitle: 'Growthfile Home',
-    pageDescription: 'One app for employees of all offices',
-    isLoggedIn: !!requester.uid,
-    /** Person is Support or already an admin of an office */
-    pageIndexable: true,
-    phoneNumber: requester.phoneNumber,
-    email: requester.email,
-    emailVerified: requester.emailVerified,
-    displayName: requester.displayName,
-    photoURL: requester.photoURL,
-    isSupport: requester.isSupport,
-    isAdmin: requester.isAdmin,
-    adminOffices: requester.adminOffices,
-    isProduction: env.isProduction,
-    isAdminOrSupport: requester.isAdmin || requester.isSupport,
-    showActions: requester.isAdmin || requester.isSupport,
-    pageUrl: `https://growthfile.com/${locals.slug}`,
-  });
-};
-
-const handleAuthPage = (locals, requester) => {
-  const source = require('./views/auth.hbs')();
-  const template = handlebars.compile(source, {
-    strict: true,
-  });
-
-  return template({
-    pageTitle: 'Login to Growthfile',
+    pageTitle: 'Add users',
     pageDescription: '',
     isLoggedIn: !!requester.uid,
     pageIndexable: false,
@@ -506,9 +436,13 @@ const handleAuthPage = (locals, requester) => {
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
     isProduction: env.isProduction,
+    office: requester.office,
+    companyLogo: requester.companyLogo,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 };
+
+
 
 const handleDownloadPage = (locals, requester) => {
   const source = require('./views/download.hbs')();
@@ -532,49 +466,7 @@ const handleDownloadPage = (locals, requester) => {
   });
 };
 
-const handleContactPage = (locals, requester) => {
-  const source = require('./views/contact.hbs')();
-  const template = handlebars.compile(source, {
-    strict: true,
-  });
 
-  return template({
-    pageTitle: 'Contact Us | Growthfile',
-    pageDescription: 'Please fill the form to contact us',
-    isLoggedIn: !!requester.uid,
-    phoneNumber: requester.phoneNumber,
-    email: requester.email,
-    emailVerified: requester.emailVerified,
-    displayName: requester.displayName,
-    photoURL: requester.photoURL,
-    isSupport: requester.support,
-    isAdmin: requester.isAdmin,
-    isProduction: env.isProduction,
-    pageUrl: `https://growthfile.com/${locals.slug}`,
-  });
-};
-
-const handleTermsAndConditionsPage = (locals, requester) => {
-  const source = require('./views/terms-and-conditions.hbs')();
-  const template = handlebars.compile(source, {
-    strict: true,
-  });
-
-  return template({
-    pageTitle: 'Terms and Conditions | Growthfile',
-    pageDescription: 'Terms and conditions for Growthfile',
-    isLoggedIn: !!requester.uid,
-    phoneNumber: requester.phoneNumber,
-    email: requester.email,
-    emailVerified: requester.emailVerified,
-    displayName: requester.displayName,
-    photoURL: requester.photoURL,
-    isSupport: requester.support,
-    isAdmin: requester.isAdmin,
-    isProduction: env.isProduction,
-    pageUrl: `https://growthfile.com/${locals.slug}`,
-  });
-};
 
 const handle404Page = conn => {
   return conn.res.status(code.notFound).send('<h1>Page not found</h1>');
@@ -586,27 +478,6 @@ const handleServerError = conn => {
     .send('<h1>Something went wrong</h1>');
 };
 
-const handlePrivacyPolicyPage = (locals, requester) => {
-  const source = require('./views/privacy-policy.hbs')();
-  const template = handlebars.compile(source, {
-    strict: true,
-  });
-
-  return template({
-    pageTitle: 'Privacy Policy | Growthfile',
-    pageDescription: 'Privacy Policy for Growthfile Analytics Pvt. Ltd.',
-    isLoggedIn: !!requester.uid,
-    phoneNumber: requester.phoneNumber,
-    email: requester.email,
-    emailVerified: requester.emailVerified,
-    displayName: requester.displayName,
-    photoURL: requester.photoURL,
-    isSupport: requester.support,
-    isAdmin: requester.isAdmin,
-    isProduction: env.isProduction,
-    pageUrl: `https://growthfile.com/${locals.slug}`,
-  });
-};
 
 function getTemplatesListJSON(name) {
   let baseQuery = rootCollections.activityTemplates;
@@ -976,6 +847,7 @@ const getAuthFromIdToken = async idToken => {
 module.exports = async (req, res) => {
   // https://firebase.google.com/docs/hosting/full-config#glob_pattern_matching
   const slug = getSlugFromUrl(req.url);
+
   const conn = {
     req,
     res,
@@ -1042,43 +914,44 @@ module.exports = async (req, res) => {
     requester.isAdmin = requester.adminOffices.length > 0;
     requester.isSupport = !!requester.customClaims.support;
 
-    /** Home page */
-    if (!slug) {
-      return sendHTML(conn, handleHomePage(locals, requester));
-    }
-
-    if (slug === 'contact') {
-      return sendHTML(conn, handleContactPage(locals, requester));
-    }
-
-    if (slug === 'privacy-policy') {
-      return sendHTML(conn, handlePrivacyPolicyPage(locals, requester));
-    }
-
-    if (slug === 'terms-and-conditions') {
-      return sendHTML(conn, handleTermsAndConditionsPage(locals, requester));
-    }
-
-    if (slug === 'join') {
-      return sendHTML(conn, handleJoinPage(locals, requester));
-    }
 
     if (slug === 'download') {
       return sendHTML(conn, handleDownloadPage(locals, requester));
     }
 
-    if (slug === 'auth') {
-      if (userRecord.uid) {
-        return res.status(code.temporaryRedirect).redirect('/');
+    if (slug === 'share') {
+      const searchParams = new URLSearchParams(url.parse(conn.req.url).search);
+      const office = searchParams.get('office');
+
+      // redirect user to admin panel
+      if (!office) {
+        return conn.res.status(code.temporaryRedirect).redirect('/app');
       }
 
-      return sendHTML(conn, handleAuthPage(locals, requester));
+      const officeDocQueryResult = await rootCollections.offices
+        .where('office', '==', office)
+        .limit(1)
+        .get();
+
+      if (officeDocQueryResult.empty) {
+        return handle404Page(conn);
+      }
+
+      requester.office = office;
+
+      // Get company logo to add in share link
+      requester.companyLogo =
+        officeDocQueryResult.docs[0].get('attachment')['Company Logo'].value ||
+        'https://growthfile-207204.firebaseapp.com/v2/img/ic_launcher.png';
+
+      return sendHTML(conn, handleSharePage(locals, requester));
     }
 
     if (slug === 'json') {
       return sendJSON(conn, await jsonApi(conn, requester));
     }
 
+    
     const officeDocQueryResult = await rootCollections.offices
       .where('slug', '==', slug)
       .limit(1)
