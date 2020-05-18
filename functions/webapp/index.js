@@ -25,7 +25,7 @@
 
 // TODO: Check this out: https://oembed.com/
 const rpn = require('request-promise-native');
-const { URLSearchParams } =  require('url');
+const { URLSearchParams } = require('url');
 const { auth, db, rootCollections } = require('../admin/admin');
 const { code } = require('../admin/responses');
 const {
@@ -433,8 +433,7 @@ const fetchOfficeData = async (locals, requester) => {
   return handleOfficePage(locals, requester);
 };
 
-
-const handleSharePage =  (locals, requester) => {
+const handleSharePage = (locals, requester) => {
   const source = require('./views/share.hbs')();
   const template = handlebars.compile(source, {
     strict: true,
@@ -453,12 +452,11 @@ const handleSharePage =  (locals, requester) => {
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
     isProduction: env.isProduction,
-    office:requester.office,
-    companyLogo:requester.companyLogo,
+    office: requester.office,
+    companyLogo: requester.companyLogo,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 };
-
 
 const handleJoinPage = (locals, requester) => {
   const source = require('./views/join.hbs')();
@@ -537,8 +535,6 @@ const handleAuthPage = (locals, requester) => {
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 };
-
-
 
 const handleDownloadPage = (locals, requester) => {
   const source = require('./views/download.hbs')();
@@ -1067,7 +1063,7 @@ module.exports = async (req, res) => {
     const requester = Object.assign({}, userRecord);
     // This is a read only property
     const customClaims = userRecord.customClaims || {};
-    
+
     requester.customClaims = customClaims;
     requester.adminOffices = requester.customClaims.admin || [];
     requester.isAdmin = requester.adminOffices.length > 0;
@@ -1110,48 +1106,45 @@ module.exports = async (req, res) => {
       return sendJSON(conn, await jsonApi(conn, requester));
     }
 
-    if(slug === 'share') {
+    if (slug === 'share') {
       const searchParams = new URLSearchParams(url.parse(conn.req.url).search);
       const office = searchParams.get('office');
-      
-      // redirect user to admin panel
-      if(!office) {   
-          return conn.res.status(code.temporaryRedirect).redirect('/app');      
-      };
-      
-      const officeDocQueryResult =  await rootCollections.offices
-      .where('office', '==', office)
-      .limit(1)
-      .get();
 
-      
+      // redirect user to admin panel
+      if (!office) {
+        return conn.res.status(code.temporaryRedirect).redirect('/app');
+      }
+
+      const officeDocQueryResult = await rootCollections.offices
+        .where('office', '==', office)
+        .limit(1)
+        .get();
+
       if (officeDocQueryResult.empty) {
         return handle404Page(conn);
       }
 
       requester.office = office;
-      
+
       // Get company logo to add in share link
-      requester.companyLogo = officeDocQueryResult.docs[0]
-        .get('attachment')['Company Logo']
-        .value || 'https://growthfile-207204.firebaseapp.com/v2/img/ic_launcher.png';
+      requester.companyLogo =
+        officeDocQueryResult.docs[0].get('attachment')['Company Logo'].value ||
+        'https://growthfile-207204.firebaseapp.com/v2/img/ic_launcher.png';
 
       return sendHTML(conn, handleSharePage(locals, requester));
-
     }
-    
-    const officeDocQueryResult = await rootCollections.offices
-    .where('slug', '==', slug)
-    .limit(1)
-    .get();
 
+    const officeDocQueryResult = await rootCollections.offices
+      .where('slug', '==', slug)
+      .limit(1)
+      .get();
 
     if (officeDocQueryResult.empty) {
       return handle404Page(conn);
     }
-    
+
     locals.officeDoc = officeDocQueryResult.docs[0];
-  
+
     return sendHTML(conn, await fetchOfficeData(locals, requester));
   } catch (error) {
     console.error(error);

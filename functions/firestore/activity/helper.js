@@ -465,7 +465,7 @@ const filterAttachment = ({
         break;
       }
     }
-    
+
     if (field === 'rating') {
       const checkRating = Number.isInteger(value) && value >= 1 && value <= 5;
       if (!checkRating) {
@@ -1475,14 +1475,11 @@ const activityCreator = (
   return finalActivityObject;
 };
 
-
-const sanitizer = (obj) => {
+const sanitizer = obj => {
   const t = obj;
   for (const v in t) {
-    if (typeof t[v] == "object")
-      sanitizer(t[v]);
-    else if (t[v] === undefined || t[v] ===null)
-      t[v] = '';
+    if (typeof t[v] == 'object') sanitizer(t[v]);
+    else if (t[v] === undefined || t[v] === null) t[v] = '';
   }
   return t;
 };
@@ -1490,29 +1487,63 @@ const sanitizer = (obj) => {
 const addendumCreator = (
   { ms_timestamp, ms_month, ms_date, ms_year, ms_action },
   {
-    ms_displayName,ms_phoneNumber,ms_email,ms_displayUrl,ms_isSupportRequest,ms_potentialSameUsers
+    ms_displayName,
+    ms_phoneNumber,
+    ms_email,
+    ms_displayUrl,
+    ms_isSupportRequest,
+    ms_potentialSameUsers,
   },
   ms_roleDoc,
   {
-    ms_template,ms_name,ms_lat,ms_long,ms_url,ms_route,ms_locality,ms_adminstrative_area_level_2,ms_adminstrative_area_level_1,ms_country,ms_postalCode
+    ms_template,
+    ms_name,
+    ms_lat,
+    ms_long,
+    ms_url,
+    ms_route,
+    ms_locality,
+    ms_adminstrative_area_level_2,
+    ms_adminstrative_area_level_1,
+    ms_country,
+    ms_postalCode,
   },
   ms_distanceFromPrevious = 0.0,
   ms_distanceAccurate = '',
   ms_activity,
 ) => {
   const addendumFieldsSet1 = {
-    ms_timestamp, ms_month, ms_date, ms_year, ms_action
+    ms_timestamp,
+    ms_month,
+    ms_date,
+    ms_year,
+    ms_action,
   };
   const addendumFieldsSet2 = {
-    ms_displayName,ms_phoneNumber,ms_email,ms_displayUrl,ms_isSupportRequest,ms_potentialSameUsers
+    ms_displayName,
+    ms_phoneNumber,
+    ms_email,
+    ms_displayUrl,
+    ms_isSupportRequest,
+    ms_potentialSameUsers,
   };
   const addendumFieldsSet3 = {
-    ms_template,ms_name,ms_lat,ms_long,ms_url,ms_route,ms_locality,ms_adminstrative_area_level_2,ms_adminstrative_area_level_1,ms_country,ms_postalCode
+    ms_template,
+    ms_name,
+    ms_lat,
+    ms_long,
+    ms_url,
+    ms_route,
+    ms_locality,
+    ms_adminstrative_area_level_2,
+    ms_adminstrative_area_level_1,
+    ms_country,
+    ms_postalCode,
   };
   const addendum = Object.assign(
     {},
     addendumFieldsSet1,
-    { ms_user: addendumFieldsSet2},
+    { ms_user: addendumFieldsSet2 },
     { ms_roleDoc },
     { ms_location: addendumFieldsSet3 },
     { ms_distanceAccurate, ms_distanceFromPrevious },

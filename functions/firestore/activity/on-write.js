@@ -70,13 +70,9 @@ const growthFileMsIntegration = async change => {
   const {
     after: { id: activityId },
   } = change;
-  const activityData = Object.assign(
-    {},
-    change.after.data(),
-    {
-      addendumDocRef:change.after.get('addendumDocRef').path
-    }
-  );
+  const activityData = Object.assign({}, change.after.data(), {
+    addendumDocRef: change.after.get('addendumDocRef').path,
+  });
 
   switch (activityData.template) {
     case 'office':
@@ -1295,7 +1291,9 @@ const createNewProfiles = async ({ newPhoneNumbersSet, smsContext }) => {
   const profilePromises = [];
 
   const promiseCreator = phoneNumber => {
-    if (!phoneNumber) {return;}
+    if (!phoneNumber) {
+      return;
+    }
     profilePromises.push(rootCollections.profiles.doc(phoneNumber).get());
   };
 
@@ -4673,7 +4671,9 @@ const handleProfile = async change => {
     // Check-ins are sent to users via `Updates/{uid}/Addendum/` collection
     if (template !== 'check-in') {
       // in profile
-      if (!phoneNumber) {return;}
+      if (!phoneNumber) {
+        return;
+      }
       batch.set(
         rootCollections.profiles
           .doc(phoneNumber)
