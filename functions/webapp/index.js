@@ -453,31 +453,6 @@ const handleDownloadPage = (locals, requester) => {
   });
 };
 
-const handleSharePage = (locals, requester) => {
-  const source = require('./views/share.hbs')();
-  const template = handlebars.compile(source, {
-    strict: true,
-  });
-
-  return template({
-    pageTitle: 'Add users',
-    pageDescription: '',
-    isLoggedIn: !!requester.uid,
-    pageIndexable: false,
-    phoneNumber: requester.phoneNumber,
-    email: requester.email,
-    emailVerified: requester.emailVerified,
-    displayName: requester.displayName,
-    photoURL: requester.photoURL,
-    isSupport: requester.support,
-    isAdmin: requester.isAdmin,
-    isProduction: env.isProduction,
-    office: requester.office,
-    companyLogo: requester.companyLogo,
-    pageUrl: `https://growthfile.com/${locals.slug}`,
-  });
-};
-
 const handle404Page = conn => {
   return conn.res.status(code.notFound).send('<h1>Page not found</h1>');
 };
@@ -924,34 +899,6 @@ module.exports = async (req, res) => {
 
     if (slug === 'download') {
       return sendHTML(conn, handleDownloadPage(locals, requester));
-    }
-
-    if (slug === 'share') {
-      const searchParams = new URLSearchParams(url.parse(conn.req.url).search);
-      const office = searchParams.get('office');
-
-      // redirect user to admin panel
-      if (!office) {
-        return conn.res.status(code.temporaryRedirect).redirect('/app');
-      }
-
-      const officeDocQueryResult = await rootCollections.offices
-        .where('office', '==', office)
-        .limit(1)
-        .get();
-
-      if (officeDocQueryResult.empty) {
-        return handle404Page(conn);
-      }
-
-      requester.office = office;
-
-      // Get company logo to add in share link
-      requester.companyLogo =
-        officeDocQueryResult.docs[0].get('attachment')['Company Logo'].value ||
-        'https://growthfile-207204.firebaseapp.com/v2/img/ic_launcher.png';
-
-      return sendHTML(conn, handleSharePage(locals, requester));
     }
 
     if (slug === 'json') {
